@@ -2,6 +2,45 @@
  "tables": [
   {
    "schema": "cfg",
+   "name": "DeployLog",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "comment": "DEPLOYMENT LOG - what is actually running in this database.\n\nAnswers one question with certainty: \"is the database running the script I\nhave on disk, or an older copy of it?\"\n\nThat question used to be answered by inspecting a procedure's definition for\na marker string. It is not reliable: the marker almost always appears in the\nCOMMENT that describes it, so a stale deployment reports itself as current.\nA SHA-256 of the exact file bytes that were executed cannot be fooled that way.\n\nWritten automatically by deploy\\Invoke-EhdSql.py after a successful run.\nDeployments made any other way (SSMS, sqlcmd) do NOT appear here - which is\nitself useful information, because an absent or stale row means nobody can\nprove what is running.\n\nTo compare disk against database:   .\\tests\\Test-Deployed.ps1",
+   "columns": [
+    {
+     "name": "ScriptName",
+     "type": "nvarchar(260)",
+     "nullable": "no",
+     "notes": "PK"
+    },
+    {
+     "name": "FileSha256",
+     "type": "char(64)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "FileBytes",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DeployedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    },
+    {
+     "name": "DeployedBy",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "cfg",
    "name": "Setting",
    "file": "01-central\\00-schemas-and-config.sql",
    "comment": "CONFIGURATION",
@@ -2281,10 +2320,17 @@
   },
   {
    "schema": "core",
+   "name": "usp_LogFeedFailure",
+   "file": "01-central\\02-normalize.sql",
+   "params": "@FeedName varchar(64)",
+   "comment": "Record a feed that blew up during normalization.\n\nEach feed in core.usp_Normalize is wrapped in its own TRY/CATCH so one bad\nstaging table cannot stop the other seventeen. That isolation was right, but\nthe CATCH only did PRINT - and PRINT goes to a session nobody is watching when\nthe caller is the Elastic Job agent. A feed could fail on every single run\nwhile core.ProcessRun recorded Status='Success', which is exactly how the\nResourceUsage primary key violation above survived unnoticed.\n\ncore.ProcessRun is where the operator already looks, so failures go there, in\nthe same 'Step:Detail' / 'Failed' shape that usp_PurgeAll and usp_EvaluateAlerts\nalready use.\n\nCalled from inside a CATCH block, so ERROR_NUMBER() and ERROR_MESSAGE() still\nreturn the error that triggered that block."
+  },
+  {
+   "schema": "core",
    "name": "usp_Normalize",
    "file": "01-central\\02-normalize.sql",
    "params": "@Debug bit = 0",
-   "comment": "THE NORMALIZER\nOne procedure, one pass, every feed. Each feed is independently wrapped so a\nsingle malformed table cannot stop the rest."
+   "comment": "THE NORMALIZER\nOne procedure, one pass, every feed. Each feed is independently wrapped so a\nsingle malformed table cannot stop the rest.\n\nONLY ONE INSTANCE MAY RUN AT A TIME\n\nEvery feed below follows the same shape: read staging, anti-join against core\nto drop what is already there, insert the rest. That is correct in isolation\nand wrong under concurrency - two runs both evaluate the anti-join before\neither inserts, both conclude the row is new, and the second one hits a\nprimary key violation.\n\nThis is not a theoretical race. 01_Normalize is step 1 of BOTH processing\njobs: EHD_Process_Frequent every 5 minutes and EHD_Process_Daily every 24\nhours. Their schedules collide once a day by construction. Observed here with\ntwo runs starting in the same millisecond, taking out five feeds at once:\n  Violation of PRIMARY KEY constraint 'PK_core_ResourceUsage' ...\nA slow pass on a large estate can also simply overlap the next 5-minute run\nand collide with itself.\n\nSo the whole procedure takes an application lock. A caller that cannot get it\nwithin 5 seconds does not queue up behind the running pass and does not fail\nthe job step - it records 'Skipped' and returns, because by the time it would\nacquire the lock the run that beat it has already normalized the same staging\nrows. There is nothing left to do."
   },
   {
    "schema": "core",
@@ -2930,7 +2976,7 @@
  "files": [
   {
    "path": "01-central\\00-schemas-and-config.sql",
-   "lines": 274,
+   "lines": 319,
    "purpose": ""
   },
   {
@@ -2940,7 +2986,7 @@
   },
   {
    "path": "01-central\\02-normalize.sql",
-   "lines": 767,
+   "lines": 910,
    "purpose": ""
   },
   {
@@ -2950,12 +2996,12 @@
   },
   {
    "path": "01-central\\04-job-health.sql",
-   "lines": 237,
+   "lines": 263,
    "purpose": ""
   },
   {
    "path": "01-central\\05-alerts.sql",
-   "lines": 649,
+   "lines": 666,
    "purpose": ""
   },
   {
@@ -2980,17 +3026,17 @@
   },
   {
    "path": "03-elasticjobs\\20-agent-setup.sql",
-   "lines": 372,
+   "lines": 392,
    "purpose": ""
   },
   {
    "path": "03-elasticjobs\\21-jobs-frequent.sql",
-   "lines": 422,
+   "lines": 430,
    "purpose": ""
   },
   {
    "path": "03-elasticjobs\\22-jobs-standard.sql",
-   "lines": 501,
+   "lines": 520,
    "purpose": ""
   },
   {

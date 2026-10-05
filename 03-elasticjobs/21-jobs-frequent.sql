@@ -138,6 +138,14 @@ END
   (DTU vs vCore vs Hyperscale vs Serverless), so the SELECT is built from the
   columns that actually exist - otherwise the step fails on the first database
   with a different shape and takes the whole run with it.
+
+  end_time is datetime, and the agent types the staging column from whatever the
+  query returns. datetime counts in ticks of 1/300 second, so .393 widens to
+  .3933333 the moment it is compared with the datetime2(3) column in
+  core.ResourceUsage - which broke the normalizer's duplicate guard. Casting here
+  means new deployments land a datetime2(3) staging column that matches core
+  exactly. (core.usp_Normalize converts defensively too, so estates whose staging
+  table was already created as datetime keep working without a rebuild.)
 ------------------------------------------------------------------------------*/
 SET @cmd = N'
 SET NOCOUNT ON;
@@ -145,7 +153,7 @@ SELECT * INTO #rs FROM sys.dm_db_resource_stats;
 DECLARE @s nvarchar(max) = N''
 SELECT  ServerName   = CAST(@@SERVERNAME AS nvarchar(256)),
         DatabaseName = DB_NAME(),
-        EndTimeUtc        = r.end_time,
+        EndTimeUtc        = CONVERT(datetime2(3), r.end_time),
         AvgCpuPct         = '' + CASE WHEN COL_LENGTH(''tempdb..#rs'',''avg_cpu_percent'')            IS NOT NULL THEN N''r.avg_cpu_percent''            ELSE N''NULL'' END + N'',
         AvgDataIoPct      = '' + CASE WHEN COL_LENGTH(''tempdb..#rs'',''avg_data_io_percent'')        IS NOT NULL THEN N''r.avg_data_io_percent''        ELSE N''NULL'' END + N'',
         AvgLogWritePct    = '' + CASE WHEN COL_LENGTH(''tempdb..#rs'',''avg_log_write_percent'')      IS NOT NULL THEN N''r.avg_log_write_percent''      ELSE N''NULL'' END + N'',

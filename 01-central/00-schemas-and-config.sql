@@ -209,6 +209,22 @@ CREATE OR ALTER PROCEDURE cfg.usp_RegisterTarget
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    /*--------------------------------------------------------------------------
+      Store the SHORT server name, always.
+
+      Every collection query stamps its rows with @@SERVERNAME, which on Azure
+      SQL is 'ehd-server', not 'ehd-server.database.windows.net'. core.FeedArrival
+      and the auto-registration in core.usp_RecordArrival therefore both key on
+      the short name. An operator who registers a target the natural way - by
+      pasting the fully qualified name they used to connect - would otherwise
+      create a SECOND cfg.Target row that no feed can ever match, which then
+      sits there raising NO_DATA forever while the database is collecting fine.
+
+      Trimming here makes both spellings land on the same row.
+    --------------------------------------------------------------------------*/
+    SET @ServerName = LEFT(@ServerName, CHARINDEX('.', @ServerName + '.') - 1);
+
     MERGE cfg.Target AS t
     USING (SELECT @ServerName AS ServerName, @DatabaseName AS DatabaseName) AS s
        ON t.ServerName = s.ServerName AND t.DatabaseName = s.DatabaseName

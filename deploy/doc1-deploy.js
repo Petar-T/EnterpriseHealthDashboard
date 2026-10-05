@@ -373,9 +373,14 @@ c.push(BREAK());
 c.push(H1('11. Day-2 operations'));
 
 c.push(H3('Every morning - 30 seconds'));
+/* vw_FeedDiagnosis has no CollectionState column - that lives on
+   core.vw_TargetStatus. Pointing the morning check at the wrong column meant the
+   generated guide handed the operator a query that fails with
+   "Invalid column name 'CollectionState'". The equivalent filter on this view is
+   Diagnosis, which is the column the view exists to produce. */
 c.push(...CODE([
   'SELECT * FROM core.vw_OpenAlerts ORDER BY Severity, RaisedUtc DESC;',
-  'SELECT * FROM core.vw_FeedDiagnosis WHERE CollectionState <> \'OK\';']));
+  'SELECT * FROM core.vw_FeedDiagnosis WHERE Diagnosis <> \'Healthy\';']));
 
 c.push(H3('Weekly'));
 c.push(BULLET('core.vw_CapacityForecast - anything running out of space inside 90 days'));

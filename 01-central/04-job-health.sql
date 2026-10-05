@@ -65,6 +65,29 @@ ELSE
 
   JobTier maps the job name onto the collection tier the rest of the system
   uses, so this view joins cleanly to core.FeedArrival.
+
+  ServerName IS DELIBERATELY SHORTENED
+  ------------------------------------
+  jobs.job_executions.target_server_name is the fully qualified name the agent
+  connected to - 'ehd-server.database.windows.net'. Everything else in this
+  schema keys on the SHORT name, because cfg.Target and core.FeedArrival are
+  populated from @@SERVERNAME inside the collection queries, and on Azure SQL
+  that returns 'ehd-server'.
+
+  So every join from job history back to a target silently matched nothing, and
+  three separate consumers were broken by it, all of them failing OPEN:
+
+    * core.vw_FeedDiagnosis joined on ServerName, got NULL Attempts24h, and
+      reported "no job has run in 24 h" for a healthy estate. Four of its seven
+      diagnoses - including 'Healthy' and 'EVERY run failed' - were unreachable.
+    * the JOB_FAILING rule in 05-alerts.sql filters vw_JobHealth on the short
+      name, so the Critical alert that exists to tell you collection has stopped
+      could never fire.
+    * the dashboard keys rows as 'ServerName|DatabaseName', so its "Fails 24h"
+      column never matched a database and always rendered empty.
+
+  Normalizing here fixes all three at once, and keeps the raw value as
+  TargetServerFqdn for anyone who needs to see what was actually dialled.
 ------------------------------------------------------------------------------*/
 DECLARE @sql nvarchar(max);
 
@@ -80,7 +103,9 @@ SELECT  JobName        = e.job_name,
                             WHEN e.job_name LIKE ''%Process%''          THEN ''Processing''
                             WHEN e.job_name LIKE ''%Setup%''            THEN ''Setup''
                             ELSE ''Other'' END,
-        ServerName     = e.target_server_name,
+        ServerName     = LEFT(e.target_server_name,
+                              CHARINDEX(''.'', e.target_server_name + ''.'') - 1),
+        TargetServerFqdn = e.target_server_name,
         DatabaseName   = e.target_database_name,
         Lifecycle      = e.lifecycle,
         IsFailure      = CASE WHEN e.lifecycle IN (''Failed'',''TimedOut'',''Canceled'') THEN 1 ELSE 0 END,
@@ -101,6 +126,7 @@ SELECT  JobName = CAST(NULL AS nvarchar(128)),
         StepName= CAST(NULL AS nvarchar(128)),
         JobTier = CAST(NULL AS varchar(20)),
         ServerName   = CAST(NULL AS nvarchar(256)),
+        TargetServerFqdn = CAST(NULL AS nvarchar(256)),
         DatabaseName = CAST(NULL AS nvarchar(128)),
         Lifecycle    = CAST(NULL AS nvarchar(50)),
         IsFailure    = CAST(0 AS int),

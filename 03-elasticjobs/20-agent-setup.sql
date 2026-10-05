@@ -176,6 +176,26 @@ GRANT ALTER   ON SCHEMA::stg  TO [ehd-agent-umi];    -- ...inside stg, nowhere e
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::stg  TO [ehd-agent-umi];
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::core TO [ehd-agent-umi];
 GRANT SELECT  ON SCHEMA::cfg  TO [ehd-agent-umi];
+
+-- WRITE to cfg.Target, and to nothing else in cfg.
+--
+-- Two different things run as this identity and both write to the target
+-- registry: EHD_Process_Daily step 03_SyncTargetRegistry UPDATEs LastSeenUtc and
+-- INSERTs databases that have started reporting, and core.usp_RecordArrival
+-- MERGEs the same table on every normalize pass. With SELECT alone, the job step
+-- failed outright every day with
+--     "The UPDATE permission was denied on the object 'Target' ... schema 'cfg'"
+-- and the MERGE inside usp_RecordArrival failed too - silently, because its CATCH
+-- only PRINTs. The visible symptom was an empty cfg.Target and a fleet scorecard
+-- that never showed a newly onboarded database, which is the exact failure the
+-- SyncTargetRegistry step exists to prevent.
+--
+-- Scoped to the OBJECT, not the schema. Widening this to SCHEMA::cfg would also
+-- hand the job write access to cfg.Setting - retention windows, alert thresholds,
+-- staleness limits - which is the configuration the operator sets deliberately
+-- and no automated step has any business rewriting.
+GRANT INSERT, UPDATE ON OBJECT::cfg.Target TO [ehd-agent-umi];
+
 GRANT EXECUTE ON SCHEMA::core TO [ehd-agent-umi];    -- usp_Normalize / EvaluateAlerts / Purge
 GRANT VIEW DEFINITION TO [ehd-agent-umi];            -- fn_StagingReady inspects sys.columns
 

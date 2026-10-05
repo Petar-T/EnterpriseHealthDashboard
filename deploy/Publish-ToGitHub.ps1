@@ -48,6 +48,24 @@ if (-not (Test-Path $gh)) { throw 'GitHub CLI not found.' }
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 
+<#
+    Write UTF-8 with NO byte-order mark.
+
+    Set-Content -Encoding utf8 is not portable: on PowerShell 7 it writes plain
+    UTF-8, but on Windows PowerShell 5.1 it PREPENDS a BOM (EF BB BF). GitHub's
+    API then sees the BOM before the opening brace and rejects the whole request
+    with
+
+        gh: Problems parsing JSON (HTTP 400)
+
+    which points at the payload rather than at the encoding, and only ever
+    reproduces on 5.1. UTF8Encoding($false) writes the same bytes on both.
+#>
+function Write-Utf8NoBom {
+    param([string] $Path, [string] $Text)
+    [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
+}
+
 try {
     # ----------------------------------------------------------------- checks
     Write-Host ''
@@ -117,8 +135,7 @@ try {
         $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
 
         $tmp = [IO.Path]::GetTempFileName()
-        @{ content = $b64; encoding = 'base64' } | ConvertTo-Json -Compress |
-            Set-Content $tmp -Encoding utf8 -NoNewline
+        Write-Utf8NoBom $tmp (@{ content = $b64; encoding = 'base64' } | ConvertTo-Json -Compress)
 
         # --input with a FILE, not inline JSON: on Windows, inline JSON is
         # mangled by cmd.exe quoting rules.
@@ -134,7 +151,7 @@ try {
     Write-Host ''
     Write-Host 'Creating tree...' -ForegroundColor Cyan
     $tmp = [IO.Path]::GetTempFileName()
-    @{ tree = $tree } | ConvertTo-Json -Depth 5 -Compress | Set-Content $tmp -Encoding utf8 -NoNewline
+    Write-Utf8NoBom $tmp (@{ tree = $tree } | ConvertTo-Json -Depth 5 -Compress)
     $treeSha = (& $gh api "repos/$Owner/$Repo/git/trees" --method POST --input $tmp --jq '.sha' 2>&1).Trim()
     Remove-Item $tmp -Force
     if ($LASTEXITCODE -ne 0) { throw "tree failed: $treeSha" }
@@ -149,7 +166,7 @@ try {
     if ($hasParent) { $commitBody.parents = @("$parent".Trim()) } else { $commitBody.parents = @() }
 
     $tmp = [IO.Path]::GetTempFileName()
-    $commitBody | ConvertTo-Json -Depth 4 -Compress | Set-Content $tmp -Encoding utf8 -NoNewline
+    Write-Utf8NoBom $tmp ($commitBody | ConvertTo-Json -Depth 4 -Compress)
     $commitSha = (& $gh api "repos/$Owner/$Repo/git/commits" --method POST --input $tmp --jq '.sha' 2>&1).Trim()
     Remove-Item $tmp -Force
     if ($LASTEXITCODE -ne 0) { throw "commit failed: $commitSha" }
@@ -159,13 +176,13 @@ try {
     Write-Host ''
     Write-Host 'Updating branch...' -ForegroundColor Cyan
     $tmp = [IO.Path]::GetTempFileName()
-    @{ sha = $commitSha; force = $false } | ConvertTo-Json -Compress | Set-Content $tmp -Encoding utf8 -NoNewline
+    Write-Utf8NoBom $tmp (@{ sha = $commitSha; force = $false } | ConvertTo-Json -Compress)
     if ($hasParent) {
         $null = & $gh api "repos/$Owner/$Repo/git/refs/heads/$Branch" --method PATCH --input $tmp 2>&1
     } else {
         Remove-Item $tmp -Force
         $tmp = [IO.Path]::GetTempFileName()
-        @{ ref = "refs/heads/$Branch"; sha = $commitSha } | ConvertTo-Json -Compress | Set-Content $tmp -Encoding utf8 -NoNewline
+        Write-Utf8NoBom $tmp (@{ ref = "refs/heads/$Branch"; sha = $commitSha } | ConvertTo-Json -Compress)
         $null = & $gh api "repos/$Owner/$Repo/git/refs" --method POST --input $tmp 2>&1
     }
     Remove-Item $tmp -Force

@@ -167,7 +167,47 @@ BEGIN
         VALUES (s.ServerName, s.DatabaseName, SYSUTCDATETIME(),
                 N''auto-registered on first data arrival'');';
     BEGIN TRY EXEC sys.sp_executesql @reg; END TRY
-    BEGIN CATCH PRINT '  target registration failed: ' + ERROR_MESSAGE(); END CATCH;
+    BEGIN CATCH
+        /* Same rule as the arrival MERGE above: non-fatal, but never silent.
+           A bare PRINT here hid a real permission gap for the entire life of the
+           Elastic Job - the agent identity had SELECT but not INSERT/UPDATE on
+           cfg.Target, so this MERGE failed on every normalize pass while the run
+           still reported Success and the target registry stayed empty. */
+        PRINT '  target registration failed: ' + ERROR_MESSAGE();
+        INSERT INTO core.ProcessRun (StepName, Status, CompletedUtc, ErrorNumber, ErrorMessage)
+        VALUES ('RegisterTarget:' + @Table, 'Failed', SYSUTCDATETIME(),
+                ERROR_NUMBER(), LEFT(ERROR_MESSAGE(), 2048));
+    END CATCH;
+END;
+GO
+
+
+/*------------------------------------------------------------------------------
+  Record a feed that blew up during normalization.
+
+  Each feed in core.usp_Normalize is wrapped in its own TRY/CATCH so one bad
+  staging table cannot stop the other seventeen. That isolation was right, but
+  the CATCH only did PRINT - and PRINT goes to a session nobody is watching when
+  the caller is the Elastic Job agent. A feed could fail on every single run
+  while core.ProcessRun recorded Status='Success', which is exactly how the
+  ResourceUsage primary key violation above survived unnoticed.
+
+  core.ProcessRun is where the operator already looks, so failures go there, in
+  the same 'Step:Detail' / 'Failed' shape that usp_PurgeAll and usp_EvaluateAlerts
+  already use.
+
+  Called from inside a CATCH block, so ERROR_NUMBER() and ERROR_MESSAGE() still
+  return the error that triggered that block.
+------------------------------------------------------------------------------*/
+CREATE OR ALTER PROCEDURE core.usp_LogFeedFailure
+    @FeedName varchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    PRINT '!! ' + @FeedName + ': ' + ERROR_MESSAGE();
+    INSERT INTO core.ProcessRun (StepName, CompletedUtc, Status, ErrorNumber, ErrorMessage)
+    VALUES (CONCAT('Normalize:', @FeedName), SYSUTCDATETIME(), 'Failed',
+            ERROR_NUMBER(), LEFT(CONCAT('Line ', ERROR_LINE(), ': ', ERROR_MESSAGE()), 2048));
 END;
 GO
 
@@ -176,6 +216,28 @@ GO
   THE NORMALIZER
   One procedure, one pass, every feed. Each feed is independently wrapped so a
   single malformed table cannot stop the rest.
+
+  ONLY ONE INSTANCE MAY RUN AT A TIME
+  -----------------------------------
+  Every feed below follows the same shape: read staging, anti-join against core
+  to drop what is already there, insert the rest. That is correct in isolation
+  and wrong under concurrency - two runs both evaluate the anti-join before
+  either inserts, both conclude the row is new, and the second one hits a
+  primary key violation.
+
+  This is not a theoretical race. 01_Normalize is step 1 of BOTH processing
+  jobs: EHD_Process_Frequent every 5 minutes and EHD_Process_Daily every 24
+  hours. Their schedules collide once a day by construction. Observed here with
+  two runs starting in the same millisecond, taking out five feeds at once:
+      Violation of PRIMARY KEY constraint 'PK_core_ResourceUsage' ...
+  A slow pass on a large estate can also simply overlap the next 5-minute run
+  and collide with itself.
+
+  So the whole procedure takes an application lock. A caller that cannot get it
+  within 5 seconds does not queue up behind the running pass and does not fail
+  the job step - it records 'Skipped' and returns, because by the time it would
+  acquire the lock the run that beat it has already normalized the same staging
+  rows. There is nothing left to do.
 ==============================================================================*/
 CREATE OR ALTER PROCEDURE core.usp_Normalize
     @Debug bit = 0
@@ -184,9 +246,26 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT OFF;
 
-    DECLARE @RunId bigint, @rows bigint = 0, @total bigint = 0, @skipped int = 0;
+    DECLARE @RunId bigint, @rows bigint = 0, @total bigint = 0, @skipped int = 0, @errors int = 0;
     INSERT INTO core.ProcessRun (StepName, Status) VALUES ('Normalize', 'Running');
     SET @RunId = SCOPE_IDENTITY();
+
+    DECLARE @lock int;
+    EXEC @lock = sys.sp_getapplock @Resource   = 'core.usp_Normalize',
+                                   @LockMode   = 'Exclusive',
+                                   @LockOwner  = 'Session',
+                                   @LockTimeout = 5000;
+    IF @lock < 0
+    BEGIN
+        UPDATE core.ProcessRun
+           SET CompletedUtc = SYSUTCDATETIME(), Status = 'Skipped', RowsAffected = 0,
+               ErrorMessage = N'Another normalize pass was already running; '
+                            + N'its work covers the same staging rows.'
+         WHERE ProcessRunId = @RunId;
+        PRINT '  Normalize skipped - another pass holds the lock.';
+        SELECT RowsNormalized = CAST(0 AS bigint), FeedsSkipped = 0, FeedsFailed = 0;
+        RETURN;
+    END;
 
     DECLARE @srv sysname = ISNULL((SELECT SettingValue FROM cfg.Setting WHERE SettingKey='Staging.ServerColumn'),   N'ServerName');
     DECLARE @db  sysname = ISNULL((SELECT SettingValue FROM cfg.Setting WHERE SettingKey='Staging.DatabaseColumn'), N'DatabaseName');
@@ -194,7 +273,29 @@ BEGIN
     DECLARE @D nvarchar(300) = QUOTENAME(@db);
     DECLARE @sql nvarchar(max);
 
-    /*=========================================================== ResourceUsage */
+    /*=========================================================== ResourceUsage
+      EVERY reference to the staging timestamp is wrapped in CONVERT(datetime2(3)).
+      That is not decoration - without it this feed inserts once and then throws a
+      primary key violation on every subsequent run, forever.
+
+      The staging table is created by the Elastic Job agent from the shape of the
+      collection query, and the query selects sys.dm_db_resource_stats.end_time,
+      which is datetime. core.ResourceUsage.EndTimeUtc is datetime2(3). Comparing
+      the two promotes the datetime to datetime2(7), and datetime counts in ticks
+      of 1/300 second: 22:45:02.393 becomes 22:45:02.3933333, which does not equal
+      the 22:45:02.393 already stored in core. So the NOT EXISTS guard missed every
+      timestamp whose millisecond part ends in 3 or 7 - about two thirds of them -
+      while the INSERT itself rounded them straight back onto the existing key.
+
+      Observed: 85 of 104 already-normalized rows failed the guard, the batch died
+      on PK_core_ResourceUsage, and because the CATCH below only PRINTed, the run
+      still recorded Status='Success'. The fleet's primary CPU/IO/memory feed had
+      stopped normalizing and nothing said so.
+
+      Converting on both sides makes the comparison exact and the GROUP BY key
+      identical to the stored key. It is also a no-op where staging is already
+      datetime2(3), so it stays correct if the agent ever materializes it that way.
+    */
     IF core.fn_StagingReady('ResourceUsage', @srv + ',' + @db + ',EndTimeUtc') = 1
     BEGIN
         BEGIN TRY
@@ -203,7 +304,7 @@ BEGIN
                 (ServerName, DatabaseName, EndTimeUtc, AvgCpuPct, AvgDataIoPct, AvgLogWritePct,
                  AvgMemoryPct, MaxWorkerPct, MaxSessionPct, XtpStoragePct, AvgInstanceCpuPct,
                  DtuLimit, CpuLimit)
-            SELECT s.' + @S + N', s.' + @D + N', s.EndTimeUtc,
+            SELECT s.' + @S + N', s.' + @D + N', CONVERT(datetime2(3), s.EndTimeUtc),
                    MAX(s.AvgCpuPct), MAX(s.AvgDataIoPct), MAX(s.AvgLogWritePct),
                    MAX(s.AvgMemoryPct), MAX(s.MaxWorkerPct), MAX(s.MaxSessionPct),
                    MAX(s.XtpStoragePct), MAX(s.AvgInstanceCpuPct), MAX(s.DtuLimit), MAX(s.CpuLimit)
@@ -212,12 +313,12 @@ BEGIN
               AND  NOT EXISTS (SELECT 1 FROM core.ResourceUsage c
                                WHERE c.ServerName = s.' + @S + N'
                                  AND c.DatabaseName = s.' + @D + N'
-                                 AND c.EndTimeUtc = s.EndTimeUtc)
-            GROUP BY s.' + @S + N', s.' + @D + N', s.EndTimeUtc;';
+                                 AND c.EndTimeUtc = CONVERT(datetime2(3), s.EndTimeUtc))
+            GROUP BY s.' + @S + N', s.' + @D + N', CONVERT(datetime2(3), s.EndTimeUtc);';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  ResourceUsage  +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'ResourceUsage', 'Frequent', 'ResourceUsage';
-        END TRY BEGIN CATCH PRINT '!! ResourceUsage: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'ResourceUsage'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*========================================================== ActiveRequest */
@@ -244,7 +345,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  ActiveRequest  +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'ActiveRequest', 'Frequent', 'ActiveRequest';
-        END TRY BEGIN CATCH PRINT '!! ActiveRequest: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'ActiveRequest'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*========================================================== BlockingChain */
@@ -270,7 +371,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  BlockingChain  +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'BlockingChain', 'Frequent', 'BlockingChain';
-        END TRY BEGIN CATCH PRINT '!! BlockingChain: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'BlockingChain'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*======================================================== SessionActivity */
@@ -296,7 +397,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  SessionActivity +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'SessionActivity', 'Frequent', 'SessionActivity';
-        END TRY BEGIN CATCH PRINT '!! SessionActivity: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'SessionActivity'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*=============================================================== WaitStats */
@@ -319,7 +420,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  WaitStats      +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'WaitStats', 'Frequent', 'WaitStats';
-        END TRY BEGIN CATCH PRINT '!! WaitStats: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'WaitStats'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*============================================================== QueryStats */
@@ -346,7 +447,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  QueryStats     +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'QueryStats', 'Standard', 'QueryStats';
-        END TRY BEGIN CATCH PRINT '!! QueryStats: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'QueryStats'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*====================================================== QueryStoreTopQuery */
@@ -373,7 +474,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  QueryStore     +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'QueryStore', 'Standard', 'QueryStoreTopQuery';
-        END TRY BEGIN CATCH PRINT '!! QueryStore: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'QueryStore'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*=================================================================== Space
@@ -439,7 +540,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  Space          +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'Space', 'Standard', 'Space';
-        END TRY BEGIN CATCH PRINT '!! Space: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'Space'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*============================================================= IoFileStats */
@@ -461,7 +562,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  IoFileStats    +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'Io', 'Standard', 'IoFileStats';
-        END TRY BEGIN CATCH PRINT '!! IoFileStats: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'IoFileStats'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*================================================================ XeErrors
@@ -502,7 +603,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  XeErrors       +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'XeErrors', 'Standard', 'XeErrors';
-        END TRY BEGIN CATCH PRINT '!! XeErrors: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'XeErrors'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*============================================================== XeBlocking */
@@ -524,7 +625,7 @@ BEGIN
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             IF @Debug = 1 PRINT '  XeBlocking     +' + CAST(@rows AS varchar(20));
             EXEC core.usp_RecordArrival 'XeBlocking', 'Standard', 'XeBlocking';
-        END TRY BEGIN CATCH PRINT '!! XeBlocking: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'XeBlocking'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*========================================================= XeSessionHealth */
@@ -544,7 +645,7 @@ BEGIN
             GROUP BY s.' + @S + N', s.' + @D + N', s.SnapshotUtc, s.SessionName;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'XeHealth', 'Standard', 'XeSessionHealth';
-        END TRY BEGIN CATCH PRINT '!! XeSessionHealth: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'XeSessionHealth'; END CATCH;
     END ELSE SET @skipped += 1;
 
     /*============================================================== DAILY FEEDS
@@ -570,7 +671,7 @@ BEGIN
             GROUP BY s.' + @S + N', s.' + @D + N', s.SnapshotDate, s.SchemaName, s.TableName, s.IndexName;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'IndexUsage', 'Daily', 'IndexUsage';
-        END TRY BEGIN CATCH PRINT '!! IndexUsage: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'IndexUsage'; END CATCH;
     END ELSE SET @skipped += 1;
 
     IF core.fn_StagingReady('MissingIndex', @srv + ',' + @db + ',SnapshotDate') = 1
@@ -590,7 +691,7 @@ BEGIN
             FROM   stg.MissingIndex AS s;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'MissingIndex', 'Daily', 'MissingIndex';
-        END TRY BEGIN CATCH PRINT '!! MissingIndex: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'MissingIndex'; END CATCH;
     END ELSE SET @skipped += 1;
 
     IF core.fn_StagingReady('IndexFragmentation', @srv + ',' + @db + ',SnapshotDate,SchemaName,TableName,IndexName') = 1
@@ -610,7 +711,7 @@ BEGIN
             GROUP BY s.' + @S + N', s.' + @D + N', s.SnapshotDate, s.SchemaName, s.TableName, s.IndexName;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'Fragmentation', 'Daily', 'IndexFragmentation';
-        END TRY BEGIN CATCH PRINT '!! IndexFragmentation: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'IndexFragmentation'; END CATCH;
     END ELSE SET @skipped += 1;
 
     IF core.fn_StagingReady('TableSpace', @srv + ',' + @db + ',SnapshotDate,SchemaName,TableName') = 1
@@ -630,7 +731,7 @@ BEGIN
             GROUP BY s.' + @S + N', s.' + @D + N', s.SnapshotDate, s.SchemaName, s.TableName;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'TableSpace', 'Daily', 'TableSpace';
-        END TRY BEGIN CATCH PRINT '!! TableSpace: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'TableSpace'; END CATCH;
     END ELSE SET @skipped += 1;
 
     IF core.fn_StagingReady('SecurityPrincipal', @srv + ',' + @db + ',SnapshotDate,PrincipalName') = 1
@@ -650,7 +751,7 @@ BEGIN
             GROUP BY s.' + @S + N', s.' + @D + N', s.SnapshotDate, s.PrincipalName;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'SecurityPrincipal', 'Daily', 'SecurityPrincipal';
-        END TRY BEGIN CATCH PRINT '!! SecurityPrincipal: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'SecurityPrincipal'; END CATCH;
     END ELSE SET @skipped += 1;
 
     IF core.fn_StagingReady('SecurityPermission', @srv + ',' + @db + ',SnapshotDate,GranteeName') = 1
@@ -669,16 +770,24 @@ BEGIN
             FROM   stg.SecurityPermission AS s;';
             EXEC sys.sp_executesql @sql; SET @rows = @@ROWCOUNT; SET @total += @rows;
             EXEC core.usp_RecordArrival 'SecurityPermission', 'Daily', 'SecurityPermission';
-        END TRY BEGIN CATCH PRINT '!! SecurityPermission: ' + ERROR_MESSAGE(); END CATCH;
+        END TRY BEGIN CATCH SET @errors += 1; EXEC core.usp_LogFeedFailure 'SecurityPermission'; END CATCH;
     END ELSE SET @skipped += 1;
 
     UPDATE core.ProcessRun
-       SET CompletedUtc = SYSUTCDATETIME(), Status = 'Success', RowsAffected = @total
+       SET CompletedUtc = SYSUTCDATETIME(),
+           Status       = CASE WHEN @errors > 0 THEN 'PartialSuccess' ELSE 'Success' END,
+           RowsAffected = @total,
+           ErrorMessage = CASE WHEN @errors > 0
+                               THEN CONCAT(@errors, ' feed(s) failed - see Normalize: rows') END
      WHERE ProcessRunId = @RunId;
 
-    SELECT RowsNormalized = @total, FeedsSkipped = @skipped;
+    EXEC sys.sp_releaseapplock @Resource = 'core.usp_Normalize', @LockOwner = 'Session';
+
+    SELECT RowsNormalized = @total, FeedsSkipped = @skipped, FeedsFailed = @errors;
     IF @skipped > 0
         RAISERROR('%d feed(s) skipped - staging table missing or column mismatch. Run tests\verify-staging-schema.sql.', 10, 1, @skipped);
+    IF @errors > 0
+        RAISERROR('%d feed(s) FAILED - query core.ProcessRun WHERE StepName LIKE ''Normalize:%%'' for the errors.', 10, 1, @errors);
 END;
 GO
 

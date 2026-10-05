@@ -356,6 +356,16 @@ IF NOT EXISTS (SELECT 1 FROM jobs.jobsteps js JOIN jobs.jobs j
   Deadlock graphs are returned as nvarchar rather than xml, because Elastic
   Jobs output tables handle character data far more predictably than xml. The
   central normalizer casts it back.
+
+  The empty-ring-buffer branch below must return EXACTLY the same columns, in the
+  same order, as the populated branch. It did not: it omitted ServerName and
+  DatabaseName. The agent types an output table from the first result set it ever
+  receives, and on a fresh estate no target has the XE sessions yet - so every
+  target took this branch and stg.XeErrors was created with no ServerName and no
+  DatabaseName. core.fn_StagingReady then rejected the feed on every normalize run
+  (silently, as 'skipped'), and the table never corrected itself once the sessions
+  were finally deployed, because the agent does not reshape a table that exists.
+  core.ErrorEvent and core.Deadlock stayed empty permanently as a result.
 ------------------------------------------------------------------------------*/
 SET @cmd = N'
 SET NOCOUNT ON;
@@ -368,7 +378,10 @@ DECLARE @x xml = (
 IF @x IS NULL
 BEGIN
     SELECT TOP (0)
-        HarvestUtc = @Now, EventTimeUtc = CAST(NULL AS datetime2(3)),
+        HarvestUtc = @Now,
+        ServerName = CAST(@@SERVERNAME AS nvarchar(256)),
+        DatabaseName = DB_NAME(),
+        EventTimeUtc = CAST(NULL AS datetime2(3)),
         EventName = CAST(NULL AS sysname), ErrorNumber = CAST(NULL AS int),
         Severity = CAST(NULL AS int), ErrorState = CAST(NULL AS int),
         Message = CAST(NULL AS nvarchar(4000)), SessionId = CAST(NULL AS int),
@@ -413,6 +426,9 @@ IF NOT EXISTS (SELECT 1 FROM jobs.jobsteps js JOIN jobs.jobs j
 
 /*------------------------------------------------------------------------------
   STEP 6  XeBlocking - shred the ehd_blocking ring buffer
+  Same contract as STEP 5: the empty branch must mirror the populated branch
+  column for column, or the agent fixes stg.XeBlocking into a shape the
+  normalizer can never read.
 ------------------------------------------------------------------------------*/
 SET @cmd = N'
 SET NOCOUNT ON;
@@ -425,7 +441,10 @@ DECLARE @x xml = (
 IF @x IS NULL
 BEGIN
     SELECT TOP (0)
-        HarvestUtc = @Now, EventTimeUtc = CAST(NULL AS datetime2(3)),
+        HarvestUtc = @Now,
+        ServerName = CAST(@@SERVERNAME AS nvarchar(256)),
+        DatabaseName = DB_NAME(),
+        EventTimeUtc = CAST(NULL AS datetime2(3)),
         EventName = CAST(NULL AS sysname), WaitType = CAST(NULL AS nvarchar(128)),
         DurationMs = CAST(NULL AS bigint), SessionId = CAST(NULL AS int),
         LoginName = CAST(NULL AS nvarchar(256)), ProgramName = CAST(NULL AS nvarchar(256)),

@@ -634,19 +634,49 @@ GRANT SELECT  ON SCHEMA::cfg  TO ehd_writer;
 GRANT EXECUTE ON SCHEMA::core TO ehd_writer;
 GRANT VIEW DEFINITION TO ehd_writer;            -- fn_StagingReady reads sys.columns
 
--- SELECT stays, because core.vw_JobHealth reads job history.
+-- Write access to cfg.Target, and to NOTHING else in cfg.
+-- EHD_Process_Daily step 03_SyncTargetRegistry updates LastSeenUtc and inserts
+-- newly reporting databases, and core.usp_RecordArrival merges the same table on
+-- every normalize pass. With SELECT alone the job step fails every day with
+-- "The UPDATE permission was denied on the object 'Target' ... schema 'cfg'",
+-- and the merge inside the normalizer fails too - so a database you just
+-- onboarded sends data that never appears on the fleet scorecard.
+-- Scoped to the object: SCHEMA::cfg would also hand the job write access to
+-- cfg.Setting, which holds retention windows and alert thresholds.
+GRANT INSERT, UPDATE ON OBJECT::cfg.Target TO ehd_writer;
+
 -- Every form of WRITE against the job control plane is refused.
 -- DENY beats GRANT and beats role membership, so this holds even if somebody
 -- later adds ehd_writer to a broad role.
-DENY INSERT, UPDATE, DELETE, ALTER, CONTROL ON SCHEMA::jobs          TO ehd_writer;
-DENY INSERT, UPDATE, DELETE, ALTER, CONTROL ON SCHEMA::jobs_internal TO ehd_writer;
+--
+-- NOTE THE ABSENCE OF **CONTROL** ON [jobs], AND DO NOT ADD IT.
+-- CONTROL implies every permission on the securable, so DENY ... CONTROL also
+-- denies SELECT. That silently revokes the read access core.vw_JobHealth needs,
+-- and you get "The SELECT permission was denied on the object 'job_executions'"
+-- while normalization keeps working - which reads as an alerting bug for as long
+-- as you care to look. Deny the specific write permissions instead.
+DENY INSERT, UPDATE, DELETE, ALTER, EXECUTE ON SCHEMA::jobs          TO ehd_writer;
+
+-- jobs_internal is different: nothing here needs to read it, so the catch-all
+-- DENY is appropriate.
+DENY INSERT, UPDATE, DELETE, ALTER, CONTROL  ON SCHEMA::jobs_internal TO ehd_writer;
 ```
 
-Verify it took — `20-agent-setup.sql` runs this check for you, or run it directly:
+Verify it took — `20-agent-setup.sql` runs this check for you, or run it directly.
+Note that it checks **both halves**: that writes are denied, *and* that reads on
+`[jobs]` are still possible. Asserting only "a DENY exists" passes happily for an
+over-broad `DENY ... CONTROL` that has already broken the system:
 
 ```sql
-SELECT  SchemaName = s.name,
-        IsDenied   = MAX(CASE WHEN p.state_desc = 'DENY' THEN 1 ELSE 0 END)
+SELECT  SchemaName   = s.name,
+        WritesDenied = MAX(CASE WHEN p.state_desc = 'DENY'
+                                 AND p.permission_name IN ('INSERT','UPDATE','DELETE',
+                                                           'ALTER','EXECUTE','CONTROL')
+                                THEN 1 ELSE 0 END),
+        /* CONTROL and SELECT denials both block reads - CONTROL implies SELECT */
+        ReadBlocked  = MAX(CASE WHEN p.state_desc = 'DENY'
+                                 AND p.permission_name IN ('SELECT','CONTROL')
+                                THEN 1 ELSE 0 END)
 FROM    sys.database_permissions AS p
 JOIN    sys.schemas AS s ON s.schema_id = p.major_id
 WHERE   p.class = 3
@@ -655,7 +685,13 @@ WHERE   p.class = 3
 GROUP BY s.name;
 ```
 
-Both rows must come back `IsDenied = 1`.
+Expected: `jobs` → `WritesDenied = 1`, **`ReadBlocked = 0`**; `jobs_internal` →
+`WritesDenied = 1` (read there is irrelevant). If `jobs` comes back with
+`ReadBlocked = 1`, fix it with:
+
+```sql
+REVOKE CONTROL ON SCHEMA::jobs FROM ehd_writer;
+```
 
 ### Entra-only estates (managed identity)
 
@@ -948,6 +984,34 @@ SELECT * FROM core.vw_FleetScorecard;
 SELECT * FROM core.vw_TargetStatus;
 ```
 
+`usp_Normalize` returns `RowsNormalized`, `FeedsSkipped` and `FeedsFailed`.
+**All three matter.** On a healthy estate with the XE sessions deployed,
+`FeedsSkipped` and `FeedsFailed` should both be `0`:
+
+* `FeedsSkipped > 0` — a `stg.*` table is missing a column the normalizer needs.
+  Run `tests\verify-staging-schema.sql`. The usual culprit is the two XE feeds;
+  see the `stg.XeErrors` / `stg.XeBlocking` row in §12.
+* `FeedsFailed > 0` — a feed threw. The run is recorded as `PartialSuccess` and
+  each failure gets its own row, so read them:
+
+  ```sql
+  SELECT StepName, ErrorNumber, ErrorMessage
+  FROM   core.ProcessRun
+  WHERE  StepName LIKE 'Normalize:%' AND Status = 'Failed'
+  ORDER BY ProcessRunId DESC;
+  ```
+
+Then confirm the job-history join is live — this is what makes `vw_FeedDiagnosis`
+and the `JOB_FAILING` alert work:
+
+```sql
+SELECT * FROM core.vw_FeedDiagnosis;
+```
+
+Every tier should read `Healthy` with a non-NULL `Attempts24h`. If `Attempts24h`
+is NULL while the jobs are plainly running, the server-name join is broken —
+redeploy `01-central\04-job-health.sql`.
+
 ---
 
 ## 9. Publish the dashboard
@@ -1016,6 +1080,13 @@ SELECT ServerName, DatabaseName, Severity, AlertCode, Message, AgeMinutes
 FROM   core.vw_OpenAlerts
 WHERE  Severity = 'Critical'
 ORDER BY RaisedUtc;
+
+-- anything the pipeline trapped overnight rather than failing on
+SELECT StepName, Status, ErrorMessage, StartedUtc
+FROM   core.ProcessRun
+WHERE  Status IN ('Failed','PartialSuccess')
+  AND  StartedUtc > DATEADD(HOUR, -24, SYSUTCDATETIME())
+ORDER BY ProcessRunId DESC;
 ```
 
 Or just open the dashboard — the Fleet tab is this query.
@@ -1172,6 +1243,10 @@ Does cfg.Target have enabled rows?
 | **Job says `Succeeded` but `stg.*` tables never appear, and `target_database_name` is NULL on every execution row** | **the target group is empty** — the job ran zero times and reported success | `SELECT * FROM jobs.target_group_members` — add the member, then re-run |
 | **`Cannot open server '<srv>' requested by the login. Client with IP address '20.x.x.x' is not allowed`** | the job agent's own IP is blocked. Your client-IP firewall rule covers your laptop, not the agent. **Applies even when the agent and target share one logical server** | elastic-jobs private endpoint (approve it on the target server), or `EXEC sp_set_firewall_rule N'AllowAllWindowsAzureIps','0.0.0.0','0.0.0.0'` in `master`. Do not allow-list the agent IP — it is not stable |
 | `Invalid object name 'stg.X'` | that step has never run | start the owning job manually |
+| **`EHD_Process_Daily` step `03_SyncTargetRegistry` fails daily with `The UPDATE permission was denied on the object 'Target' ... schema 'cfg'`** — and newly onboarded databases never appear on the scorecard | the agent identity was granted `SELECT` on `SCHEMA::cfg` only, but that step (and the target merge inside `core.usp_RecordArrival`) writes to `cfg.Target`. The merge in the normalizer fails too, silently | `GRANT INSERT, UPDATE ON OBJECT::cfg.Target TO [<your-umi>];` in the job database. Object-scoped on purpose — do **not** widen to `SCHEMA::cfg`, which would also expose `cfg.Setting` |
+| **`core.vw_FeedDiagnosis` reports `Data arrived earlier but no job has run in 24 h` while `core.vw_JobHealth` clearly shows successful runs**, and the `JOB_FAILING` alert never fires | job history records the **fully qualified** `target_server_name`, but `cfg.Target` and `core.FeedArrival` key on `@@SERVERNAME`, which is the **short** name. Every join between them matched nothing | redeploy `01-central\04-job-health.sql` — `core.vw_JobExecution` now normalizes `ServerName` to the short form and keeps the full name as `TargetServerFqdn` |
+| **`Violation of PRIMARY KEY constraint 'PK_core_...'` during `Normalize`, often several feeds at once** | two normalize passes overlapped. `01_Normalize` is step 1 of *both* `EHD_Process_Frequent` (5 min) and `EHD_Process_Daily` (24 h), so their schedules collide once a day; both evaluate the anti-join before either inserts | redeploy `01-central\02-normalize.sql` — `core.usp_Normalize` now takes an application lock and a second caller records `Skipped` instead of racing |
+| **`FeedsSkipped` is never zero, and `core.ErrorEvent` / `core.Deadlock` stay empty forever** | `stg.XeErrors` and `stg.XeBlocking` were created without `ServerName` / `DatabaseName`, because the collection query's empty-ring-buffer branch returned a narrower column list than its populated branch — and the agent types an output table from the first result set it sees, then never reshapes it | redeploy `03-elasticjobs\22-jobs-standard.sql`, then `DROP TABLE stg.XeErrors; DROP TABLE stg.XeBlocking;` and re-run `EHD_Collect_Standard` so the agent recreates them |
 | One database `NO DATA`, others fine | not in the target group, or per-DB permission | check group membership and that the agent identity has `VIEW DATABASE STATE` |
 | Every target fails with "not able to connect" | elastic-jobs private endpoint missing or still Pending | agent blade -> Security -> Private endpoints; approve on the target server |
 | `Connection was denied... Deny Public Network Access` (47073) | you are connecting from outside the private network path | run from a VNet-connected host (Model A), not your workstation |
@@ -1404,7 +1479,8 @@ Drop the Elastic Job Agent, drop the database, drop the logins. Nothing else exi
 
 | Name | Type | Purpose |
 |---|---|---|
-| `core.usp_Normalize` | proc | `stg.*` → `core.*`, 17 feeds, each error-trapped |
+| `core.usp_Normalize` | proc | `stg.*` → `core.*`, 18 feeds, each error-trapped. Serialized by an application lock; a second concurrent caller records `Skipped` |
+| `core.usp_LogFeedFailure` | proc | Writes a failed feed to `core.ProcessRun` as `Normalize:<Feed>` so a trapped error cannot pass as success |
 | `core.usp_EvaluateAlerts` | proc | Runs every rule for every enabled target |
 | `core.usp_RaiseAlert` | proc | The only way an alert is created; de-duplicates |
 | `core.usp_ResolveAlerts` | proc | Closes alerts that stopped firing |
