@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enterprise Health Dashboard - Azure SQL Estate</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+code, .mono, pre { font-family: Consolas, "Courier New", Courier, monospace; }
+.wrap { max-width: 1620px; margin: 0 auto; padding: 20px 24px 60px; }
+
+/* ---------------------------------------------------------------- header */
+header.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  padding: 14px 18px; margin-bottom: 14px;
+  background: var(--cp-surface); border: 1px solid var(--cp-border);
+  border-radius: 16px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: 10px; flex: none;
+  background: var(--cp-accent); color: var(--cp-accent-fg);
+  display: grid; place-items: center; font-weight: 700; font-size: 15px;
+}
+.brand h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+.brand .sub { font-size: 12px; color: var(--cp-text-muted); }
+.hdr-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-items: center; }
+.chip {
+  font-size: 11.5px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--cp-border); color: var(--cp-text-muted);
+  background: var(--cp-surface-soft); white-space: nowrap;
+}
+.chip b { color: var(--cp-text); font-weight: 600; }
+
+/* ---------------------------------------------------------------- filters */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+  padding: 13px 18px; margin-bottom: 14px;
+  background: var(--cp-surface); border: 1px solid var(--cp-border);
+  border-radius: 16px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fld label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--cp-text-muted); font-weight: 600;
+}
+.fld select, .fld input {
+  appearance: none; font: inherit; font-size: 13px;
+  color: var(--cp-text); background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border); border-radius: 0.625rem;
+  padding: 7px 30px 7px 11px; min-width: 210px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--cp-text-muted) 50%),
+                    linear-gradient(135deg, var(--cp-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.fld input {
+  background-image: none; padding-right: 11px; cursor: text; min-width: 190px;
+}
+.fld select:hover, .fld input:hover { border-color: var(--cp-border-strong); }
+.fld select:focus, .fld input:focus {
+  outline: none; border-color: var(--cp-accent);
+  box-shadow: 0 0 0 3px var(--cp-accent-soft);
+}
+.fld .cnt { font-size: 11px; color: var(--cp-text-soft); margin-top: 2px; }
+
+.filters .spacer { margin-left: auto; }
+.btn {
+  appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+  border: 1px solid var(--cp-border); border-radius: 0.625rem;
+  background: var(--cp-surface-soft); color: var(--cp-text);
+  padding: 7px 13px;
+}
+.btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+.btn.primary { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+.btn.primary:hover { background: var(--cp-accent-hover); color: var(--cp-accent-fg); }
+
+/* ---------------------------------------------------------------- tabs */
+nav.tabs {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px;
+  border-bottom: 1px solid var(--cp-border);
+}
+nav.tabs button {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 13.5px; color: var(--cp-text-muted);
+  padding: 9px 14px; border-radius: 10px 10px 0 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+nav.tabs button:hover:not(:disabled) { color: var(--cp-text); background: var(--cp-accent-soft); }
+nav.tabs button.active {
+  color: var(--cp-accent); border-bottom-color: var(--cp-accent); font-weight: 600;
+}
+nav.tabs button:disabled { opacity: 0.38; cursor: not-allowed; }
+/* a detail tab with no database chosen yet - still clickable, visually softer */
+nav.tabs button.pending { color: var(--cp-text-soft); }
+nav.tabs button.pending:hover { color: var(--cp-accent); background: var(--cp-accent-soft); }
+nav.tabs .tabhint {
+  align-self: center; margin-left: 10px; font-size: 11.5px;
+  color: var(--cp-text-soft); white-space: nowrap;
+}
+.crumb .autopick {
+  font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
+  background: var(--cp-accent-soft); border: 1px solid var(--cp-accent);
+  color: var(--cp-text-muted);
+}
+.crumb .autopick b { color: var(--cp-text); }
+nav.tabs button .pill {
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px;
+  font-size: 10.5px; line-height: 16px; border-radius: 999px; text-align: center;
+  background: var(--cp-danger); color: #fff; font-weight: 700;
+}
+nav.tabs .sep { flex: none; width: 1px; background: var(--cp-border); margin: 6px 8px; }
+
+section.panel { display: none; }
+section.panel.active { display: block; }
+
+/* ---------------------------------------------------------------- cards */
+.grid { display: grid; gap: 14px; }
+.g-kpi { grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); }
+.g-2 { grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); }
+.g-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+.card {
+  background: var(--cp-surface); border: 1px solid var(--cp-border);
+  border-radius: 16px; padding: 16px 18px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.card h2 { margin: 0 0 2px; font-size: 13.5px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.card .hint { margin: 0 0 12px; font-size: 11.5px; color: var(--cp-text-soft); }
+
+.kpi .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--cp-text-muted); font-weight: 600;
+}
+.kpi .value { font-size: 29px; font-weight: 680; line-height: 1.15; margin-top: 4px; letter-spacing: -0.02em; }
+.kpi .value small { font-size: 15px; font-weight: 500; color: var(--cp-text-muted); }
+.kpi .foot { font-size: 11.5px; color: var(--cp-text-soft); margin-top: 4px; }
+.bar { height: 6px; border-radius: 999px; background: var(--cp-surface-soft); margin-top: 10px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 999px; }
+
+.ok { color: var(--cp-success); } .warn { color: var(--cp-warning); } .bad { color: var(--cp-danger); }
+.bg-ok { background: var(--cp-success); } .bg-warn { background: var(--cp-warning); } .bg-bad { background: var(--cp-danger); }
+
+.gauge-wrap { display: flex; align-items: center; gap: 18px; }
+.gauge { position: relative; width: 116px; height: 116px; flex: none; }
+.gauge .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 27px; font-weight: 700; letter-spacing: -0.02em; }
+.gauge .num span { font-size: 12px; font-weight: 500; color: var(--cp-text-muted); display: block; text-align: center; margin-top: -4px; }
+
+/* ---------------------------------------------------------------- tables */
+.tbl-scroll { overflow-x: auto; margin: 0 -18px -16px; padding: 0 18px 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th {
+  text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--cp-text-muted);
+  padding: 7px 10px; border-bottom: 1px solid var(--cp-border); white-space: nowrap;
+}
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--cp-accent); }
+th.sortable::after { content: ""; display: inline-block; width: 8px; }
+th.sort-asc::after  { content: " \25B2"; font-size: 8px; color: var(--cp-accent); }
+th.sort-desc::after { content: " \25BC"; font-size: 8px; color: var(--cp-accent); }
+td { padding: 8px 10px; border-bottom: 1px solid var(--cp-border); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--cp-accent-soft); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.sql {
+  font-family: Consolas, "Courier New", Courier, monospace; font-size: 11.5px;
+  color: var(--cp-text-muted); max-width: 440px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+td.sql:hover { white-space: normal; word-break: break-word; color: var(--cp-text); }
+
+tr.drill { cursor: pointer; }
+tr.drill:hover td:first-child { color: var(--cp-accent); }
+
+.tag { display: inline-block; font-size: 10.5px; font-weight: 650; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.t-crit { background: var(--cp-danger); color: #fff; }
+.t-warn { background: var(--cp-warning); color: #1a1a1a; }
+.t-info { background: var(--cp-link); color: #fff; }
+.t-ok   { background: var(--cp-success); color: #fff; }
+.t-mute { background: var(--cp-surface-soft); color: var(--cp-text-muted); border: 1px solid var(--cp-border); }
+
+.alert-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--cp-border); }
+.alert-row:last-child { border-bottom: 0; }
+.alert-row .dot { width: 9px; height: 9px; border-radius: 999px; margin-top: 6px; flex: none; }
+.alert-row .body { flex: 1; min-width: 0; }
+.alert-row .code { font-weight: 650; font-size: 12.5px; }
+.alert-row .msg { font-size: 12.5px; color: var(--cp-text-muted); }
+.alert-row .det {
+  font-family: Consolas, "Courier New", Courier, monospace; font-size: 11px;
+  color: var(--cp-text-soft); margin-top: 4px; white-space: pre-wrap;
+  max-height: 3.6em; overflow: hidden;
+}
+.alert-row .age { font-size: 11px; color: var(--cp-text-soft); white-space: nowrap; text-align: right; }
+.alert-row .src {
+  font-size: 11px; color: var(--cp-link); cursor: pointer; white-space: nowrap;
+  display: block; margin-top: 2px;
+}
+.alert-row .src:hover { text-decoration: underline; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--cp-text-muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+
+.empty { padding: 26px 8px; text-align: center; color: var(--cp-text-soft); font-size: 12.5px; }
+.empty b { display: block; color: var(--cp-text-muted); font-size: 13px; margin-bottom: 3px; }
+
+.wait-bar { height: 16px; border-radius: 4px; background: var(--cp-accent); min-width: 2px; }
+
+footer.foot {
+  margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--cp-border);
+  font-size: 11.5px; color: var(--cp-text-soft);
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+}
+footer.foot code { background: var(--cp-surface-soft); padding: 1px 6px; border-radius: 5px; }
+
+.banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px; margin-bottom: 14px; border-radius: 12px;
+  background: var(--cp-accent-soft); border: 1px solid var(--cp-border);
+  font-size: 12.5px; color: var(--cp-text-muted);
+}
+.banner b { color: var(--cp-text); }
+
+.crumb {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 14px; font-size: 12.5px; color: var(--cp-text-muted);
+}
+.crumb .back {
+  appearance: none; border: 1px solid var(--cp-border); background: var(--cp-surface);
+  color: var(--cp-text); font: inherit; font-size: 12.5px; cursor: pointer;
+  border-radius: 0.625rem; padding: 5px 11px;
+}
+.crumb .back:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+
+svg text { font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
+.spark { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <div class="brand-mark">EHD</div>
+    <div>
+      <h1 id="hTitle">Enterprise Health Dashboard</h1>
+      <div class="sub" id="hSub">&nbsp;</div>
+    </div>
+  </div>
+  <div class="hdr-meta" id="hMeta"></div>
+</header>
+
+<div class="banner" id="demoBanner" style="display:none">
+  <span>&#9432;</span>
+  <div><b>Sample data.</b> This file was opened without a live extract.
+  Run <code>04-dashboard\New-EnterpriseDashboard.ps1</code> against your
+  <b>central repository</b> to regenerate it from the <code>core.*</code> views.
+  One connection - no target database is contacted.</div>
+</div>
+
+<div class="filters">
+  <div class="fld">
+    <label for="selServer">Server</label>
+    <select id="selServer"></select>
+    <span class="cnt" id="cntServer"></span>
+  </div>
+  <div class="fld">
+    <label for="selDb">Database</label>
+    <select id="selDb"></select>
+    <span class="cnt" id="cntDb"></span>
+  </div>
+  <div class="fld">
+    <label for="selEnv">Health</label>
+    <select id="selEnv">
+      <option value="*">Any state</option>
+      <option value="crit">Critical alerts only</option>
+      <option value="any">Any open alert</option>
+      <option value="stale">Not reporting (stale or never)</option>
+    </select>
+    <span class="cnt">&nbsp;</span>
+  </div>
+  <div class="fld">
+    <label for="txtFind">Find</label>
+    <input id="txtFind" type="text" placeholder="database name..." autocomplete="off">
+    <span class="cnt">&nbsp;</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="fld">
+    <label>&nbsp;</label>
+    <button class="btn" id="btnReset">Reset filters</button>
+    <span class="cnt">&nbsp;</span>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs"></nav>
+
+<!-- ======================================================= FLEET -->
+<section class="panel active" id="p-fleet">
+  <div class="grid g-kpi" id="fleetKpi" style="margin-bottom:14px"></div>
+  <div class="card" style="margin-bottom:14px">
+    <h2>Fleet scorecard <span class="tag t-mute" id="fleetCount"></span></h2>
+    <p class="hint">One row per database. Click a row to open its detail. Click a column header to sort.</p>
+    <div class="tbl-scroll"><table id="tblFleet"></table></div>
+  </div>
+  <div class="grid g-2">
+    <div class="card">
+      <h2>Alerts across the selection <span class="tag t-mute" id="fleetAlertCount"></span></h2>
+      <p class="hint">Every open alert from every matching database, worst first.</p>
+      <div id="fleetAlerts"></div>
+    </div>
+    <div class="card">
+      <h2>Collection pipeline</h2>
+      <p class="hint">Any database that is stale here is reporting figures you cannot trust.</p>
+      <div class="tbl-scroll"><table id="tblFleetColl"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= OVERVIEW -->
+<section class="panel" id="p-overview">
+  <div class="crumb" id="crumbOverview"></div>
+  <div class="grid g-kpi" id="kpiGrid" style="margin-bottom:14px"></div>
+  <div class="grid g-2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>Resource utilisation &mdash; last 24 hours</h2>
+      <p class="hint">Hourly averages from <code>core.vw_ResourceHourly</code>. Dashed line = 85% alert threshold.</p>
+      <div id="chartResource"></div>
+      <div class="legend" id="legendResource"></div>
+    </div>
+    <div class="card">
+      <h2>Overall health</h2>
+      <p class="hint">Worst dimension across CPU, IO, log, memory, workers and sessions.</p>
+      <div class="gauge-wrap">
+        <div class="gauge" id="gauge"></div>
+        <div style="flex:1;min-width:0" id="healthDetail"></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid g-2">
+    <div class="card">
+      <h2>Open alerts <span class="tag t-mute" id="alertCount"></span></h2>
+      <p class="hint">Unresolved rows in <code>core.vw_OpenAlerts</code>, newest first.</p>
+      <div id="alertList"></div>
+    </div>
+    <div class="card">
+      <h2>Collection pipeline</h2>
+      <p class="hint">If this is stale, nothing else on this page can be trusted.</p>
+      <div class="tbl-scroll"><table id="tblCollectors"></table></div>
+      <h2 style="margin-top:18px">Extended Events sessions</h2>
+      <div class="tbl-scroll"><table id="tblXe"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= PERFORMANCE -->
+<section class="panel" id="p-performance">
+  <div class="crumb" id="crumbPerformance"></div>
+  <div class="grid g-2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>Top waits &mdash; last 24 hours</h2>
+      <p class="hint">Resource wait time from <code>core.vw_TopWaits</code>, with interpretation.</p>
+      <div id="waitList"></div>
+    </div>
+    <div class="card">
+      <h2>IO latency by file</h2>
+      <p class="hint">Premium storage should stay under ~5 ms. Over 20 ms on data files usually means the tier IOPS cap.</p>
+      <div class="tbl-scroll"><table id="tblIo"></table></div>
+      <h2 style="margin-top:18px">Deadlocks &mdash; last 14 days</h2>
+      <div id="chartDeadlock"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Errors &mdash; last 7 days</h2>
+    <p class="hint">From <code>core.vw_ErrorSummary</code>, shredded out of the <code>ehd_errors</code> session.</p>
+    <div class="tbl-scroll"><table id="tblErrors"></table></div>
+  </div>
+</section>
+
+<!-- ======================================================= QUERIES -->
+<section class="panel" id="p-queries">
+  <div class="crumb" id="crumbQueries"></div>
+  <div class="card" style="margin-bottom:14px">
+    <h2>Query regressions <span class="tag t-mute" id="regCount"></span></h2>
+    <p class="hint">Last 6 hours vs the preceding 7 days (<code>core.vw_QueryRegression</code>). This is where plan regressions and parameter sniffing surface.</p>
+    <div class="tbl-scroll"><table id="tblReg"></table></div>
+  </div>
+  <div class="card">
+    <h2>Top queries by CPU &mdash; last 24 hours</h2>
+    <p class="hint">Plan-cache deltas from <code>core.vw_TopQueries</code>. Hover a statement to expand it.</p>
+    <div class="tbl-scroll"><table id="tblQueries"></table></div>
+  </div>
+</section>
+
+<!-- ======================================================= BLOCKING -->
+<section class="panel" id="p-blocking">
+  <div class="crumb" id="crumbBlocking"></div>
+  <div class="card">
+    <h2>Blocking incidents &mdash; last 24 hours</h2>
+    <p class="hint">Chains from <code>core.vw_BlockingSummary</code>, head blocker resolved. A sleeping head blocker means an application forgot to COMMIT.</p>
+    <div id="blockList"></div>
+  </div>
+</section>
+
+<!-- ======================================================= CAPACITY -->
+<section class="panel" id="p-capacity">
+  <div class="crumb" id="crumbCapacity"></div>
+  <div class="grid g-2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>Database size trend &amp; forecast</h2>
+      <p class="hint">30-day history with the linear projection from <code>core.vw_CapacityForecast</code>.</p>
+      <div id="chartSpace"></div>
+      <div class="legend" id="legendSpace"></div>
+    </div>
+    <div class="card">
+      <h2>Capacity summary</h2>
+      <p class="hint">&nbsp;</p>
+      <div id="capSummary"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Largest tables</h2>
+    <div class="tbl-scroll"><table id="tblTables"></table></div>
+  </div>
+</section>
+
+<!-- ======================================================= INDEXES -->
+<section class="panel" id="p-indexes">
+  <div class="crumb" id="crumbIndexes"></div>
+  <div class="card" style="margin-bottom:14px">
+    <h2>Missing index suggestions</h2>
+    <p class="hint"><b>A starting point, not a script to run.</b> The DMV ignores existing indexes, column order and write amplification &mdash; cross-check against the drop candidates below.</p>
+    <div class="tbl-scroll"><table id="tblMissing"></table></div>
+  </div>
+  <div class="grid g-2">
+    <div class="card">
+      <h2>Drop candidates</h2>
+      <p class="hint">Only trust these after a full business cycle, month-end batch jobs included.</p>
+      <div class="tbl-scroll"><table id="tblUnused"></table></div>
+    </div>
+    <div class="card">
+      <h2>Fragmentation work list</h2>
+      <p class="hint">&ge;30% rebuild, &ge;10% reorganize, ignoring indexes below 1,000 pages.</p>
+      <div class="tbl-scroll"><table id="tblFrag"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= SECURITY -->
+<section class="panel" id="p-security">
+  <div class="crumb" id="crumbSecurity"></div>
+  <div class="grid g-2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>Security drift</h2>
+      <p class="hint">Diff of the two most recent daily fingerprints (<code>core.vw_SecurityDrift</code>).</p>
+      <div id="driftList"></div>
+    </div>
+    <div class="card">
+      <h2>Privilege changes</h2>
+      <p class="hint">Principals that gained or lost membership of a privileged role between the two most recent daily snapshots. These drive the <code>SECURITY_PRIVILEGE</code> alert.</p>
+      <div id="chartAuth"></div>
+      <div class="legend" id="legendAuth"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Security-relevant errors</h2>
+    <p class="hint">Permission-denied and authorisation failures shredded from the <code>ehd_errors</code> Extended Events ring buffer (<code>core.ErrorEvent</code>).
+    <b>This edition does not deploy auditing.</b> For a full audit trail, enable
+    Azure SQL Auditing at the logical-server level in the portal - it is a
+    control-plane setting and writes nothing into the database.</p>
+    <div class="tbl-scroll"><table id="tblAudit"></table></div>
+  </div>
+</section>
+
+<footer class="foot">
+  <span>Generated <b id="fGen"></b></span>
+  <span>Source: <code>core.*</code> central repository</span>
+  <span>Regenerate: <code>New-EnterpriseDashboard.ps1</code></span>
+  <span id="fRows"></span>
+</footer>
+
+</div>
+
+<script>
+/* =========================================================================
+   DATA - replaced wholesale by New-EnterpriseDashboard.ps1.
+   Shape:  { isSample, meta:{...}, targets:[ {id, server, database, ...}, ... ] }
+   The targets below are representative sample data so the file renders
+   standalone: 6 databases across 2 logical servers.
+   ========================================================================= */
+const DATA = /*__DATA_START__*/{"isSample":true,"meta":{"generatedUtc":"2026-10-02T17:29:59Z","windowHours":24,"collectionRows":1044,"repositoryMB":2.43,"centralServer":"localhost","centralDatabase":"EHD_Local","skipped":[{"server":"sql-prod-eus.database.windows.net","database":"ArchiveDb","reason":"Registered in cfg.Target but core.FeedArrival has no rows. Check that this database is in an EHD collection target group and that ehd_target_cred can connect to it."}]},"targets":[{"id":"sql-prod-eus.database.windows.net|BillingDb","server":"sql-prod-eus.database.windows.net","database":"BillingDb","edition":"Hyperscale","slo":"HS_Gen5_8","environment":"Production","owner":"finance-team@contoso.com","vendorOwned":true,"kpi":{"cpu":65.24,"dataIo":49.18,"logWrite":72.8,"memory":80.16,"workers":99.23,"sessions":46.31,"storagePct":21.97,"healthScore":0,"worstDimension":"WORKERS","peakPercent":99.22},"alerts":[{"severity":"Critical","code":"SECURITY_PRIVILEGE","category":"Security","message":"1 principal(s) gained high privilege since the last snapshot.","ageMinutes":1,"detail":"svc_orders: was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]"},{"severity":"Critical","code":"ERROR_BURST","category":"Errors","message":"11 errors of severity 17+ in the last hour.","ageMinutes":1,"detail":"Err 1222 x14: Lock request time out period exceeded."},{"severity":"Critical","code":"WORKERS_CRITICAL","category":"Resource","message":"Worker threads peaked at 92.61% of the tier limit.","ageMinutes":1,"detail":"At 100% new requests are refused with error 10928 and the database looks completely down to the application. Worker exhaustion is usually caused by blocking, not by load - check the Blocking detail first."},{"severity":"Warning","code":"SECURITY_DRIFT","category":"Security","message":"1 principal or role change(s) since the last snapshot.","ageMinutes":1,"detail":"Compare snapshots: SELECT * FROM core.vw_SecurityDrift WHERE ServerName = 'sql-prod-eus.database.windows.net' AND DatabaseName = 'BillingDb';"},{"severity":"Warning","code":"DEADLOCKS","category":"Concurrency","message":"5 deadlocks in the last 24 hours.","ageMinutes":1,"detail":"Most recent victim: UPDATE dbo.Invoices SET Posted = 1 WHERE BatchId = 4471; | objects: dbo.Invoices, dbo.InvoiceLines"},{"severity":"Warning","code":"BLOCKING","category":"Concurrency","message":"Blocking lasting 96 seconds.","ageMinutes":1,"detail":""},{"severity":"Warning","code":"LOG_SPACE_HIGH","category":"Capacity","message":"Transaction log is 83.00% used (reuse wait: ACTIVE_TRANSACTION).","ageMinutes":1,"detail":"If the reuse wait is ACTIVE_TRANSACTION, a long-running transaction is pinning the log - see OldestTranSessionId in core.LogSpace. If it is AVAILABILITY_REPLICA, a geo-replica is behind."},{"severity":"Info","code":"FRAGMENTATION","category":"Maintenance","message":"2 indexes are over 30.00% fragmented.","ageMinutes":1,"detail":"core.vw_FragmentationWork generates the exact ALTER INDEX statements, ONLINE and RESUMABLE. Nothing is executed automatically - this system never writes to a target."}],"resourceHourly":[{"h":"17:00","cpu":65.08,"io":49.06,"log":72.62,"mem":79.97,"wrk":98.28,"ses":45.86},{"h":"18:00","cpu":62.05,"io":46.78,"log":69.24,"mem":76.24,"wrk":92.61,"ses":43.22},{"h":"19:00","cpu":45.62,"io":34.39,"log":50.91,"mem":56.06,"wrk":69.93,"ses":32.63},{"h":"20:00","cpu":45.14,"io":34.03,"log":50.37,"mem":55.47,"wrk":72.77,"ses":33.96},{"h":"21:00","cpu":45.46,"io":34.27,"log":50.73,"mem":55.86,"wrk":68.04,"ses":31.75},{"h":"22:00","cpu":23.13,"io":17.44,"log":25.81,"mem":28.42,"wrk":37.8,"ses":17.64},{"h":"23:00","cpu":24.24,"io":18.28,"log":27.06,"mem":29.79,"wrk":38.75,"ses":18.08},{"h":"00:00","cpu":24.72,"io":18.64,"log":27.59,"mem":30.38,"wrk":39.69,"ses":18.52},{"h":"01:00","cpu":23.45,"io":17.68,"log":26.17,"mem":28.81,"wrk":36.86,"ses":17.2},{"h":"02:00","cpu":24.4,"io":18.4,"log":27.23,"mem":29.99,"wrk":40.64,"ses":18.96},{"h":"03:00","cpu":24.56,"io":18.52,"log":27.41,"mem":30.18,"wrk":37.8,"ses":17.64},{"h":"04:00","cpu":23.61,"io":17.8,"log":26.34,"mem":29.01,"wrk":38.75,"ses":18.08},{"h":"05:00","cpu":23.13,"io":17.44,"log":25.81,"mem":28.42,"wrk":35.91,"ses":16.76},{"h":"06:00","cpu":46.26,"io":34.87,"log":51.62,"mem":56.84,"wrk":70.88,"ses":33.08},{"h":"07:00","cpu":47.53,"io":35.83,"log":53.04,"mem":58.41,"wrk":72.77,"ses":33.96},{"h":"08:00","cpu":64.76,"io":48.82,"log":72.27,"mem":79.58,"wrk":98.28,"ses":45.86},{"h":"09:00","cpu":64.92,"io":48.94,"log":72.45,"mem":79.77,"wrk":99.23,"ses":46.31},{"h":"10:00","cpu":62.84,"io":47.38,"log":70.13,"mem":77.22,"wrk":98.28,"ses":45.86},{"h":"11:00","cpu":63.32,"io":47.74,"log":70.67,"mem":77.81,"wrk":98.28,"ses":45.86},{"h":"12:00","cpu":63.32,"io":47.74,"log":70.67,"mem":77.81,"wrk":98.28,"ses":45.86},{"h":"13:00","cpu":64.6,"io":48.7,"log":72.09,"mem":79.38,"wrk":99.23,"ses":46.31},{"h":"14:00","cpu":64.12,"io":48.34,"log":71.56,"mem":78.79,"wrk":98.28,"ses":45.86},{"h":"15:00","cpu":64.44,"io":48.58,"log":71.91,"mem":79.18,"wrk":98.28,"ses":45.86},{"h":"16:00","cpu":65.08,"io":49.06,"log":72.62,"mem":79.97,"wrk":99.23,"ses":46.31},{"h":"17:00","cpu":64.76,"io":48.82,"log":72.27,"mem":79.58,"wrk":99.23,"ses":46.31}],"waits":[{"type":"LCK_M_X","sec":62.94,"pct":40.71,"count":230,"avgMs":298.55,"note":"Blocking - see the Blocking detail"},{"type":"PAGEIOLATCH_SH","sec":28.11,"pct":18.18,"count":3050,"avgMs":10.05,"note":"Reading data from storage - memory pressure or missing index"},{"type":"ASYNC_NETWORK_IO","sec":21.54,"pct":13.93,"count":4800,"avgMs":4.9,"note":"Client is not consuming results fast enough (not a SQL problem)"},{"type":"WRITELOG","sec":14.67,"pct":9.49,"count":6025,"avgMs":2.66,"note":"Log write latency - batch commits, check log rate governor"},{"type":"SOS_SCHEDULER_YIELD","sec":11.0,"pct":7.11,"count":23000,"avgMs":0.52,"note":"CPU pressure - queries queuing for a scheduler"},{"type":"CXPACKET","sec":9.32,"pct":6.03,"count":1175,"avgMs":8.65,"note":"Parallelism skew - review MAXDOP / cost threshold"},{"type":"RESOURCE_SEMAPHORE","sec":4.28,"pct":2.77,"count":27,"avgMs":172.81,"note":"Memory grant starvation - oversized grants or too few resources"},{"type":"LOG_RATE_GOVERNOR","sec":2.75,"pct":1.78,"count":80,"avgMs":37.5,"note":"THROTTLED: hitting the tier log write limit - scale up"}],"topQueries":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","execs":9200,"cpuSec":206.0,"avgMs":22.39,"reads":900.0,"plans":1,"sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"},{"obj":"dbo.usp_RecalculateTotals","hash":"0x7B1D55E9A0C4F332","execs":1200,"cpuSec":144.0,"avgMs":120.0,"reads":900.0,"plans":1,"sql":"UPDATE dbo.OrderTotals SET Amount = (SELECT SUM(li.Qty * li.Price) FROM dbo.LineItems li WHERE li.OrderId = dbo.OrderTotals.OrderId);"},{"obj":"(ad hoc)","hash":"0x3C8E07F1B6A29D44","execs":4800,"cpuSec":70.5,"avgMs":14.69,"reads":900.0,"plans":1,"sql":"SELECT TOP (1000) * FROM dbo.AuditLog WHERE Created > DATEADD(DAY,-1,SYSUTCDATETIME()) ORDER BY Created DESC;"},{"obj":"dbo.usp_SearchCustomers","hash":"0x5A0B9C8D7E6F1203","execs":22100,"cpuSec":48.0,"avgMs":2.17,"reads":900.0,"plans":1,"sql":"SELECT c.* FROM dbo.Customers c WHERE c.LastName LIKE @pattern + '%' AND c.IsActive = 1;"}],"regressions":[],"blocking":[{"head":177,"incidents":1,"victims":1,"maxSec":96.0,"depth":2,"login":"svc_billing","app":"InvoiceBatch.exe","host":"BILLHOST01","status":"running","waitTypes":"LCK_M_U","sql":"EXEC dbo.usp_PostInvoiceBatch @BatchId = 4471;","victimSql":"UPDATE dbo.Invoices SET Posted = 1 WHERE BatchId = 4471;"}],"errors":[{"num":1222,"sev":17,"count":14,"last":"10/02/2026 17:23:50","app":"InvoiceBatch.exe","msg":"Lock request time out period exceeded."},{"num":1205,"sev":13,"count":9,"last":"10/02/2026 17:21:50","app":"InvoiceBatch.exe","msg":"Transaction (Process ID 204) was deadlocked on lock resources with another process and has been chosen as the deadlock victim."}],"deadlocks":[{"d":"10/02/2026 00:00:00","n":5}],"capacity":{"usedMB":7200.0,"maxMB":32768.0,"pctUsed":21.97,"growthPerDay":18.0,"daysUntilFull":1420,"projectedFull":"08/22/2030 17:29:58","verdict":"Comfortable","confidence":"High"},"spaceTrend":[{"d":"09/03/2026 00:00:00","mb":6678.0},{"d":"09/04/2026 00:00:00","mb":6696.0},{"d":"09/05/2026 00:00:00","mb":6714.0},{"d":"09/06/2026 00:00:00","mb":6732.0},{"d":"09/07/2026 00:00:00","mb":6750.0},{"d":"09/08/2026 00:00:00","mb":6768.0},{"d":"09/09/2026 00:00:00","mb":6786.0},{"d":"09/10/2026 00:00:00","mb":6804.0},{"d":"09/11/2026 00:00:00","mb":6822.0},{"d":"09/12/2026 00:00:00","mb":6840.0},{"d":"09/13/2026 00:00:00","mb":6858.0},{"d":"09/14/2026 00:00:00","mb":6876.0},{"d":"09/15/2026 00:00:00","mb":6894.0},{"d":"09/16/2026 00:00:00","mb":6912.0},{"d":"09/17/2026 00:00:00","mb":6930.0},{"d":"09/18/2026 00:00:00","mb":6948.0},{"d":"09/19/2026 00:00:00","mb":6966.0},{"d":"09/20/2026 00:00:00","mb":6984.0},{"d":"09/21/2026 00:00:00","mb":7002.0},{"d":"09/22/2026 00:00:00","mb":7020.0},{"d":"09/23/2026 00:00:00","mb":7038.0},{"d":"09/24/2026 00:00:00","mb":7056.0},{"d":"09/25/2026 00:00:00","mb":7074.0},{"d":"09/26/2026 00:00:00","mb":7092.0},{"d":"09/27/2026 00:00:00","mb":7110.0},{"d":"09/28/2026 00:00:00","mb":7128.0},{"d":"09/29/2026 00:00:00","mb":7146.0},{"d":"09/30/2026 00:00:00","mb":7164.0},{"d":"10/01/2026 00:00:00","mb":7182.0},{"d":"10/02/2026 00:00:00","mb":7200.0}],"io":[{"file":"log","type":"LOG","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11},{"file":"data_0","type":"ROWS","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11}],"missingIndexes":[{"schema":"dbo","table":"Orders","eq":"CustomerId","ineq":"OrderDate","inc":"Status, Total","seeks":184000,"impact":94.2,"score":1734280.0,"stmt":"CREATE INDEX IX_Orders_Suggested ON dbo.Orders (CustomerId) INCLUDE (Status, Total);"},{"schema":"dbo","table":"LineItems","eq":"OrderId","ineq":"","inc":"Qty, Price","seeks":92000,"impact":88.1,"score":810520.0,"stmt":"CREATE INDEX IX_LineItems_Suggested ON dbo.LineItems (OrderId) INCLUDE (Qty, Price);"},{"schema":"dbo","table":"AuditLog","eq":"Action","ineq":"Created","inc":"","seeks":41000,"impact":72.4,"score":296840.0,"stmt":"CREATE INDEX IX_AuditLog_Suggested ON dbo.AuditLog (Action);"}],"unusedIndexes":[{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","sizeMB":2140.0,"reads":1020,"updates":940000,"verdict":"Write-heavy - 10x more maintained than read","ddl":"DROP INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog];"},{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","sizeMB":310.0,"reads":0,"updates":184000,"verdict":"DROP CANDIDATE - never read, maintained on every write","ddl":"DROP INDEX [IX_Orders_Status] ON [dbo].[Orders];"}],"fragmentation":[{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","frag":62.4,"pages":104000,"mb":812.5,"action":"REBUILD","ddl":"ALTER INDEX [IX_Orders_Status] ON [dbo].[Orders] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","frag":44.1,"pages":274000,"mb":2140.63,"action":"REBUILD","ddl":"ALTER INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"Customers","index":"IX_Customers_Email","frag":18.2,"pages":11800,"mb":92.19,"action":"REORGANIZE","ddl":"ALTER INDEX [IX_Customers_Email] ON [dbo].[Customers] REORGANIZE;"}],"tables":[{"schema":"dbo","name":"AuditLog","rows":18400000,"totalMB":4280.0,"dataMB":2140.0,"indexMB":2140.0},{"schema":"dbo","name":"Orders","rows":4200000,"totalMB":1960.0,"dataMB":1130.0,"indexMB":830.0},{"schema":"dbo","name":"LineItems","rows":11800000,"totalMB":1420.0,"dataMB":980.0,"indexMB":440.0},{"schema":"dbo","name":"Customers","rows":880000,"totalMB":188.0,"dataMB":96.0,"indexMB":92.0}],"securityDrift":[{"type":"PRINCIPAL ADDED","severity":"Warning","subject":"contractor_jsmith","detail":"type=EXTERNAL_USER, auth=EXTERNAL, roles=db_datareader","date":"10/02/2026 00:00:00"},{"type":"ROLE MEMBERSHIP CHANGED","severity":"Critical","subject":"svc_orders","detail":"was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]","date":"10/02/2026 00:00:00"}],"auditEvents":[],"auth":[],"collectors":[{"tier":"Frequent","lastSuccess":"2026-10-02T17:26:50","ageMin":3,"failures24h":0,"attempts24h":0,"limitMin":20,"status":"OK","lastError":""},{"tier":"Standard","lastSuccess":"2026-10-02T17:16:50","ageMin":13,"failures24h":0,"attempts24h":0,"limitMin":90,"status":"OK","lastError":""},{"tier":"Daily","lastSuccess":"2026-10-02T14:28:50","ageMin":181,"failures24h":0,"attempts24h":0,"limitMin":1560,"status":"OK","lastError":""}],"xe":[{"session":"ehd_errors","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"},{"session":"ehd_blocking","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"}]},{"id":"sql-prod-weu.database.windows.net|AdventureWorks","server":"sql-prod-weu.database.windows.net","database":"AdventureWorks","edition":"GeneralPurpose","slo":"GP_Gen5_4","environment":"Production","owner":"retail-team@contoso.com","vendorOwned":true,"kpi":{"cpu":92.47,"dataIo":37.82,"logWrite":24.65,"memory":82.27,"workers":42.84,"sessions":32.13,"storagePct":68.36,"healthScore":0,"worstDimension":"CPU","peakPercent":95.27},"alerts":[{"severity":"Critical","code":"SECURITY_PRIVILEGE","category":"Security","message":"1 principal(s) gained high privilege since the last snapshot.","ageMinutes":1,"detail":"svc_orders: was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]"},{"severity":"Critical","code":"CPU_CRITICAL","category":"Resource","message":"CPU averaged 95.27% over 15 minutes.","ageMinutes":1,"detail":"Sustained CPU at this level means queries are queuing. Check core.vw_TopQueries for this database ordered by TotalCpuSec, and core.vw_QueryRegression for a plan change."},{"severity":"Warning","code":"SECURITY_DRIFT","category":"Security","message":"1 principal or role change(s) since the last snapshot.","ageMinutes":1,"detail":"Compare snapshots: SELECT * FROM core.vw_SecurityDrift WHERE ServerName = 'sql-prod-weu.database.windows.net' AND DatabaseName = 'AdventureWorks';"},{"severity":"Warning","code":"QUERY_REGRESSION","category":"Performance","message":"A query is running 3.98x slower than its 7-day baseline.","ageMinutes":1,"detail":"Worst offender: SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;\r\nFull list: SELECT * FROM core.vw_QueryRegression WHERE ServerName = 'sql-prod-weu.database.windows.net' AND DatabaseName = 'AdventureWorks' ORDER BY CpuRegressionX DESC;"},{"severity":"Warning","code":"BLOCKING","category":"Concurrency","message":"Blocking lasting 184 seconds.","ageMinutes":1,"detail":""},{"severity":"Info","code":"FRAGMENTATION","category":"Maintenance","message":"2 indexes are over 30.00% fragmented.","ageMinutes":1,"detail":"core.vw_FragmentationWork generates the exact ALTER INDEX statements, ONLINE and RESUMABLE. Nothing is executed automatically - this system never writes to a target."}],"resourceHourly":[{"h":"17:00","cpu":92.47,"io":37.82,"log":24.65,"mem":82.27,"wrk":42.0,"ses":31.5},{"h":"18:00","cpu":94.1,"io":38.49,"log":25.09,"mem":83.72,"wrk":43.68,"ses":32.76},{"h":"19:00","cpu":70.05,"io":28.65,"log":18.68,"mem":62.33,"wrk":31.92,"ses":23.94},{"h":"20:00","cpu":66.78,"io":27.31,"log":17.8,"mem":59.42,"wrk":30.66,"ses":23.0},{"h":"21:00","cpu":67.95,"io":27.79,"log":18.11,"mem":60.46,"wrk":31.5,"ses":23.63},{"h":"22:00","cpu":35.49,"io":14.52,"log":9.46,"mem":31.58,"wrk":18.06,"ses":13.55},{"h":"23:00","cpu":39.46,"io":16.14,"log":10.52,"mem":35.11,"wrk":18.06,"ses":13.55},{"h":"00:00","cpu":34.32,"io":14.04,"log":9.15,"mem":30.54,"wrk":17.64,"ses":13.23},{"h":"01:00","cpu":34.56,"io":14.13,"log":9.21,"mem":30.75,"wrk":16.38,"ses":12.29},{"h":"02:00","cpu":34.32,"io":14.04,"log":9.15,"mem":30.54,"wrk":16.8,"ses":12.6},{"h":"03:00","cpu":38.06,"io":15.57,"log":10.15,"mem":33.86,"wrk":18.06,"ses":13.55},{"h":"04:00","cpu":35.96,"io":14.71,"log":9.59,"mem":31.99,"wrk":17.22,"ses":12.92},{"h":"05:00","cpu":36.19,"io":14.8,"log":9.65,"mem":32.2,"wrk":16.8,"ses":12.6},{"h":"06:00","cpu":64.91,"io":26.55,"log":17.31,"mem":57.75,"wrk":30.66,"ses":23.0},{"h":"07:00","cpu":65.15,"io":26.64,"log":17.37,"mem":57.96,"wrk":30.66,"ses":23.0},{"h":"08:00","cpu":90.83,"io":37.15,"log":24.22,"mem":80.81,"wrk":42.84,"ses":32.13},{"h":"09:00","cpu":94.1,"io":38.49,"log":25.09,"mem":83.72,"wrk":43.26,"ses":32.45},{"h":"10:00","cpu":92.93,"io":38.01,"log":24.78,"mem":82.68,"wrk":43.68,"ses":32.76},{"h":"11:00","cpu":90.36,"io":36.96,"log":24.09,"mem":80.4,"wrk":42.42,"ses":31.82},{"h":"12:00","cpu":92.93,"io":38.01,"log":24.78,"mem":82.68,"wrk":44.1,"ses":33.08},{"h":"13:00","cpu":94.33,"io":38.58,"log":25.15,"mem":83.93,"wrk":43.68,"ses":32.76},{"h":"14:00","cpu":92.0,"io":37.63,"log":24.53,"mem":81.85,"wrk":42.84,"ses":32.13},{"h":"15:00","cpu":95.5,"io":39.06,"log":25.46,"mem":84.97,"wrk":43.68,"ses":32.76},{"h":"16:00","cpu":93.17,"io":38.1,"log":24.84,"mem":82.89,"wrk":43.26,"ses":32.45},{"h":"17:00","cpu":94.33,"io":38.58,"log":25.15,"mem":83.93,"wrk":42.84,"ses":32.13}],"waits":[{"type":"LCK_M_X","sec":62.94,"pct":40.71,"count":230,"avgMs":298.55,"note":"Blocking - see the Blocking detail"},{"type":"PAGEIOLATCH_SH","sec":28.11,"pct":18.18,"count":3050,"avgMs":10.05,"note":"Reading data from storage - memory pressure or missing index"},{"type":"ASYNC_NETWORK_IO","sec":21.54,"pct":13.93,"count":4800,"avgMs":4.9,"note":"Client is not consuming results fast enough (not a SQL problem)"},{"type":"WRITELOG","sec":14.67,"pct":9.49,"count":6025,"avgMs":2.66,"note":"Log write latency - batch commits, check log rate governor"},{"type":"SOS_SCHEDULER_YIELD","sec":11.0,"pct":7.11,"count":23000,"avgMs":0.52,"note":"CPU pressure - queries queuing for a scheduler"},{"type":"CXPACKET","sec":9.32,"pct":6.03,"count":1175,"avgMs":8.65,"note":"Parallelism skew - review MAXDOP / cost threshold"},{"type":"RESOURCE_SEMAPHORE","sec":4.28,"pct":2.77,"count":27,"avgMs":172.81,"note":"Memory grant starvation - oversized grants or too few resources"},{"type":"LOG_RATE_GOVERNOR","sec":2.75,"pct":1.78,"count":80,"avgMs":37.5,"note":"THROTTLED: hitting the tier log write limit - scale up"}],"topQueries":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","execs":10400,"cpuSec":926.0,"avgMs":89.04,"reads":796.15,"plans":2,"sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"},{"obj":"dbo.usp_RecalculateTotals","hash":"0x7B1D55E9A0C4F332","execs":1200,"cpuSec":144.0,"avgMs":120.0,"reads":900.0,"plans":1,"sql":"UPDATE dbo.OrderTotals SET Amount = (SELECT SUM(li.Qty * li.Price) FROM dbo.LineItems li WHERE li.OrderId = dbo.OrderTotals.OrderId);"},{"obj":"(ad hoc)","hash":"0x3C8E07F1B6A29D44","execs":4800,"cpuSec":70.5,"avgMs":14.69,"reads":900.0,"plans":1,"sql":"SELECT TOP (1000) * FROM dbo.AuditLog WHERE Created > DATEADD(DAY,-1,SYSUTCDATETIME()) ORDER BY Created DESC;"},{"obj":"dbo.usp_SearchCustomers","hash":"0x5A0B9C8D7E6F1203","execs":22100,"cpuSec":48.0,"avgMs":2.17,"reads":900.0,"plans":1,"sql":"SELECT c.* FROM dbo.Customers c WHERE c.LastName LIKE @pattern + '%' AND c.IsActive = 1;"}],"regressions":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","baseMs":22.39,"curMs":89.04,"factor":3.98,"planDelta":1,"verdict":"SEVERE regression (3x+ CPU)","sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"}],"blocking":[{"head":94,"incidents":2,"victims":2,"maxSec":184.0,"depth":1,"login":"svc_orders","app":"OrderProcessor.exe","host":"APPHOST02","status":"sleeping","waitTypes":"LCK_M_S, LCK_M_X","sql":"(idle - uncommitted transaction)","victimSql":"SELECT * FROM dbo.Orders WHERE OrderId = 88123;"}],"errors":[],"deadlocks":[],"capacity":{"usedMB":22400.0,"maxMB":32768.0,"pctUsed":68.36,"growthPerDay":110.0,"daysUntilFull":94,"projectedFull":"01/04/2027 17:29:58","verdict":"Comfortable","confidence":"High"},"spaceTrend":[{"d":"09/03/2026 00:00:00","mb":19210.0},{"d":"09/04/2026 00:00:00","mb":19320.0},{"d":"09/05/2026 00:00:00","mb":19430.0},{"d":"09/06/2026 00:00:00","mb":19540.0},{"d":"09/07/2026 00:00:00","mb":19650.0},{"d":"09/08/2026 00:00:00","mb":19760.0},{"d":"09/09/2026 00:00:00","mb":19870.0},{"d":"09/10/2026 00:00:00","mb":19980.0},{"d":"09/11/2026 00:00:00","mb":20090.0},{"d":"09/12/2026 00:00:00","mb":20200.0},{"d":"09/13/2026 00:00:00","mb":20310.0},{"d":"09/14/2026 00:00:00","mb":20420.0},{"d":"09/15/2026 00:00:00","mb":20530.0},{"d":"09/16/2026 00:00:00","mb":20640.0},{"d":"09/17/2026 00:00:00","mb":20750.0},{"d":"09/18/2026 00:00:00","mb":20860.0},{"d":"09/19/2026 00:00:00","mb":20970.0},{"d":"09/20/2026 00:00:00","mb":21080.0},{"d":"09/21/2026 00:00:00","mb":21190.0},{"d":"09/22/2026 00:00:00","mb":21300.0},{"d":"09/23/2026 00:00:00","mb":21410.0},{"d":"09/24/2026 00:00:00","mb":21520.0},{"d":"09/25/2026 00:00:00","mb":21630.0},{"d":"09/26/2026 00:00:00","mb":21740.0},{"d":"09/27/2026 00:00:00","mb":21850.0},{"d":"09/28/2026 00:00:00","mb":21960.0},{"d":"09/29/2026 00:00:00","mb":22070.0},{"d":"09/30/2026 00:00:00","mb":22180.0},{"d":"10/01/2026 00:00:00","mb":22290.0},{"d":"10/02/2026 00:00:00","mb":22400.0}],"io":[{"file":"log","type":"LOG","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11},{"file":"data_0","type":"ROWS","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11}],"missingIndexes":[{"schema":"dbo","table":"Orders","eq":"CustomerId","ineq":"OrderDate","inc":"Status, Total","seeks":184000,"impact":94.2,"score":1734280.0,"stmt":"CREATE INDEX IX_Orders_Suggested ON dbo.Orders (CustomerId) INCLUDE (Status, Total);"},{"schema":"dbo","table":"LineItems","eq":"OrderId","ineq":"","inc":"Qty, Price","seeks":92000,"impact":88.1,"score":810520.0,"stmt":"CREATE INDEX IX_LineItems_Suggested ON dbo.LineItems (OrderId) INCLUDE (Qty, Price);"},{"schema":"dbo","table":"AuditLog","eq":"Action","ineq":"Created","inc":"","seeks":41000,"impact":72.4,"score":296840.0,"stmt":"CREATE INDEX IX_AuditLog_Suggested ON dbo.AuditLog (Action);"}],"unusedIndexes":[{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","sizeMB":2140.0,"reads":1020,"updates":940000,"verdict":"Write-heavy - 10x more maintained than read","ddl":"DROP INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog];"},{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","sizeMB":310.0,"reads":0,"updates":184000,"verdict":"DROP CANDIDATE - never read, maintained on every write","ddl":"DROP INDEX [IX_Orders_Status] ON [dbo].[Orders];"}],"fragmentation":[{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","frag":62.4,"pages":104000,"mb":812.5,"action":"REBUILD","ddl":"ALTER INDEX [IX_Orders_Status] ON [dbo].[Orders] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","frag":44.1,"pages":274000,"mb":2140.63,"action":"REBUILD","ddl":"ALTER INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"Customers","index":"IX_Customers_Email","frag":18.2,"pages":11800,"mb":92.19,"action":"REORGANIZE","ddl":"ALTER INDEX [IX_Customers_Email] ON [dbo].[Customers] REORGANIZE;"}],"tables":[{"schema":"dbo","name":"AuditLog","rows":18400000,"totalMB":4280.0,"dataMB":2140.0,"indexMB":2140.0},{"schema":"dbo","name":"Orders","rows":4200000,"totalMB":1960.0,"dataMB":1130.0,"indexMB":830.0},{"schema":"dbo","name":"LineItems","rows":11800000,"totalMB":1420.0,"dataMB":980.0,"indexMB":440.0},{"schema":"dbo","name":"Customers","rows":880000,"totalMB":188.0,"dataMB":96.0,"indexMB":92.0}],"securityDrift":[{"type":"ROLE MEMBERSHIP CHANGED","severity":"Critical","subject":"svc_orders","detail":"was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]","date":"10/02/2026 00:00:00"},{"type":"PRINCIPAL ADDED","severity":"Warning","subject":"contractor_jsmith","detail":"type=EXTERNAL_USER, auth=EXTERNAL, roles=db_datareader","date":"10/02/2026 00:00:00"}],"auditEvents":[],"auth":[],"collectors":[{"tier":"Frequent","lastSuccess":"2026-10-02T17:26:50","ageMin":3,"failures24h":0,"attempts24h":0,"limitMin":20,"status":"OK","lastError":""},{"tier":"Standard","lastSuccess":"2026-10-02T17:16:50","ageMin":13,"failures24h":0,"attempts24h":0,"limitMin":90,"status":"OK","lastError":""},{"tier":"Daily","lastSuccess":"2026-10-02T14:28:50","ageMin":181,"failures24h":0,"attempts24h":0,"limitMin":1560,"status":"OK","lastError":""}],"xe":[{"session":"ehd_errors","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"},{"session":"ehd_blocking","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"}]},{"id":"sql-prod-weu.database.windows.net|CustomerHub","server":"sql-prod-weu.database.windows.net","database":"CustomerHub","edition":"GeneralPurpose","slo":"GP_S_Gen5_2","environment":"Production","owner":"crm-team@contoso.com","vendorOwned":true,"kpi":{"cpu":28.03,"dataIo":12.37,"logWrite":10.17,"memory":60.85,"workers":18.9,"sessions":23.1,"storagePct":91.86,"healthScore":25,"worstDimension":"STORAGE","peakPercent":91.86},"alerts":[{"severity":"Critical","code":"SECURITY_PRIVILEGE","category":"Security","message":"1 principal(s) gained high privilege since the last snapshot.","ageMinutes":1,"detail":"svc_orders: was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]"},{"severity":"Critical","code":"SPACE_CRITICAL","category":"Capacity","message":"Database is 91.86% of MAXSIZE (2668 MB free).","ageMinutes":1,"detail":"At 100% every INSERT fails with error 40544 and the application is down. Raise MAXSIZE or scale the tier NOW - this is not a maintenance-window problem."},{"severity":"Warning","code":"SECURITY_DRIFT","category":"Security","message":"1 principal or role change(s) since the last snapshot.","ageMinutes":1,"detail":"Compare snapshots: SELECT * FROM core.vw_SecurityDrift WHERE ServerName = 'sql-prod-weu.database.windows.net' AND DatabaseName = 'CustomerHub';"},{"severity":"Warning","code":"CAPACITY_WARNING","category":"Capacity","message":"Projected to reach MAXSIZE in 11 days.","ageMinutes":1,"detail":""},{"severity":"Info","code":"FRAGMENTATION","category":"Maintenance","message":"2 indexes are over 30.00% fragmented.","ageMinutes":1,"detail":"core.vw_FragmentationWork generates the exact ALTER INDEX statements, ONLINE and RESUMABLE. Nothing is executed automatically - this system never writes to a target."}],"resourceHourly":[{"h":"17:00","cpu":28.66,"io":12.65,"log":10.4,"mem":62.22,"wrk":18.9,"ses":23.1},{"h":"18:00","cpu":28.03,"io":12.37,"log":10.17,"mem":60.85,"wrk":18.54,"ses":22.66},{"h":"19:00","cpu":20.51,"io":9.05,"log":7.45,"mem":44.53,"wrk":13.86,"ses":16.94},{"h":"20:00","cpu":20.58,"io":9.08,"log":7.47,"mem":44.68,"wrk":13.86,"ses":16.94},{"h":"21:00","cpu":20.44,"io":9.02,"log":7.42,"mem":44.38,"wrk":13.86,"ses":16.94},{"h":"22:00","cpu":10.12,"io":4.46,"log":3.67,"mem":21.96,"wrk":7.02,"ses":8.58},{"h":"23:00","cpu":11.59,"io":5.12,"log":4.21,"mem":25.16,"wrk":7.74,"ses":9.46},{"h":"00:00","cpu":11.03,"io":4.87,"log":4.0,"mem":23.94,"wrk":7.38,"ses":9.02},{"h":"01:00","cpu":10.26,"io":4.53,"log":3.72,"mem":22.27,"wrk":7.74,"ses":9.46},{"h":"02:00","cpu":10.89,"io":4.81,"log":3.95,"mem":23.64,"wrk":7.38,"ses":9.02},{"h":"03:00","cpu":10.33,"io":4.56,"log":3.75,"mem":22.42,"wrk":7.02,"ses":8.58},{"h":"04:00","cpu":10.96,"io":4.84,"log":3.98,"mem":23.79,"wrk":7.56,"ses":9.24},{"h":"05:00","cpu":10.47,"io":4.62,"log":3.8,"mem":22.72,"wrk":7.38,"ses":9.02},{"h":"06:00","cpu":20.79,"io":9.18,"log":7.55,"mem":45.14,"wrk":13.68,"ses":16.72},{"h":"07:00","cpu":20.02,"io":8.84,"log":7.27,"mem":43.46,"wrk":13.5,"ses":16.5},{"h":"08:00","cpu":28.73,"io":12.68,"log":10.43,"mem":62.37,"wrk":18.9,"ses":23.1},{"h":"09:00","cpu":27.82,"io":12.28,"log":10.1,"mem":60.39,"wrk":18.18,"ses":22.22},{"h":"10:00","cpu":28.52,"io":12.59,"log":10.35,"mem":61.92,"wrk":18.9,"ses":23.1},{"h":"11:00","cpu":28.1,"io":12.4,"log":10.2,"mem":61.0,"wrk":18.54,"ses":22.66},{"h":"12:00","cpu":27.89,"io":12.31,"log":10.12,"mem":60.54,"wrk":18.9,"ses":23.1},{"h":"13:00","cpu":27.68,"io":12.21,"log":10.05,"mem":60.09,"wrk":18.18,"ses":22.22},{"h":"14:00","cpu":27.96,"io":12.34,"log":10.15,"mem":60.7,"wrk":18.9,"ses":23.1},{"h":"15:00","cpu":28.94,"io":12.77,"log":10.51,"mem":62.83,"wrk":18.9,"ses":23.1},{"h":"16:00","cpu":27.75,"io":12.25,"log":10.07,"mem":60.24,"wrk":18.9,"ses":23.1},{"h":"17:00","cpu":27.82,"io":12.28,"log":10.1,"mem":60.39,"wrk":18.0,"ses":22.0}],"waits":[{"type":"LCK_M_X","sec":62.94,"pct":40.71,"count":230,"avgMs":298.55,"note":"Blocking - see the Blocking detail"},{"type":"PAGEIOLATCH_SH","sec":28.11,"pct":18.18,"count":3050,"avgMs":10.05,"note":"Reading data from storage - memory pressure or missing index"},{"type":"ASYNC_NETWORK_IO","sec":21.54,"pct":13.93,"count":4800,"avgMs":4.9,"note":"Client is not consuming results fast enough (not a SQL problem)"},{"type":"WRITELOG","sec":14.67,"pct":9.49,"count":6025,"avgMs":2.66,"note":"Log write latency - batch commits, check log rate governor"},{"type":"SOS_SCHEDULER_YIELD","sec":11.0,"pct":7.11,"count":23000,"avgMs":0.52,"note":"CPU pressure - queries queuing for a scheduler"},{"type":"CXPACKET","sec":9.32,"pct":6.03,"count":1175,"avgMs":8.65,"note":"Parallelism skew - review MAXDOP / cost threshold"},{"type":"RESOURCE_SEMAPHORE","sec":4.28,"pct":2.77,"count":27,"avgMs":172.81,"note":"Memory grant starvation - oversized grants or too few resources"},{"type":"LOG_RATE_GOVERNOR","sec":2.75,"pct":1.78,"count":80,"avgMs":37.5,"note":"THROTTLED: hitting the tier log write limit - scale up"}],"topQueries":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","execs":9200,"cpuSec":206.0,"avgMs":22.39,"reads":900.0,"plans":1,"sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"},{"obj":"dbo.usp_RecalculateTotals","hash":"0x7B1D55E9A0C4F332","execs":1200,"cpuSec":144.0,"avgMs":120.0,"reads":900.0,"plans":1,"sql":"UPDATE dbo.OrderTotals SET Amount = (SELECT SUM(li.Qty * li.Price) FROM dbo.LineItems li WHERE li.OrderId = dbo.OrderTotals.OrderId);"},{"obj":"(ad hoc)","hash":"0x3C8E07F1B6A29D44","execs":4800,"cpuSec":70.5,"avgMs":14.69,"reads":900.0,"plans":1,"sql":"SELECT TOP (1000) * FROM dbo.AuditLog WHERE Created > DATEADD(DAY,-1,SYSUTCDATETIME()) ORDER BY Created DESC;"},{"obj":"dbo.usp_SearchCustomers","hash":"0x5A0B9C8D7E6F1203","execs":22100,"cpuSec":48.0,"avgMs":2.17,"reads":900.0,"plans":1,"sql":"SELECT c.* FROM dbo.Customers c WHERE c.LastName LIKE @pattern + '%' AND c.IsActive = 1;"}],"regressions":[],"blocking":[],"errors":[],"deadlocks":[],"capacity":{"usedMB":30100.0,"maxMB":32768.0,"pctUsed":91.86,"growthPerDay":240.0,"daysUntilFull":11,"projectedFull":"10/13/2026 17:29:58","verdict":"WARNING - under a month","confidence":"High"},"spaceTrend":[{"d":"09/03/2026 00:00:00","mb":23140.0},{"d":"09/04/2026 00:00:00","mb":23380.0},{"d":"09/05/2026 00:00:00","mb":23620.0},{"d":"09/06/2026 00:00:00","mb":23860.0},{"d":"09/07/2026 00:00:00","mb":24100.0},{"d":"09/08/2026 00:00:00","mb":24340.0},{"d":"09/09/2026 00:00:00","mb":24580.0},{"d":"09/10/2026 00:00:00","mb":24820.0},{"d":"09/11/2026 00:00:00","mb":25060.0},{"d":"09/12/2026 00:00:00","mb":25300.0},{"d":"09/13/2026 00:00:00","mb":25540.0},{"d":"09/14/2026 00:00:00","mb":25780.0},{"d":"09/15/2026 00:00:00","mb":26020.0},{"d":"09/16/2026 00:00:00","mb":26260.0},{"d":"09/17/2026 00:00:00","mb":26500.0},{"d":"09/18/2026 00:00:00","mb":26740.0},{"d":"09/19/2026 00:00:00","mb":26980.0},{"d":"09/20/2026 00:00:00","mb":27220.0},{"d":"09/21/2026 00:00:00","mb":27460.0},{"d":"09/22/2026 00:00:00","mb":27700.0},{"d":"09/23/2026 00:00:00","mb":27940.0},{"d":"09/24/2026 00:00:00","mb":28180.0},{"d":"09/25/2026 00:00:00","mb":28420.0},{"d":"09/26/2026 00:00:00","mb":28660.0},{"d":"09/27/2026 00:00:00","mb":28900.0},{"d":"09/28/2026 00:00:00","mb":29140.0},{"d":"09/29/2026 00:00:00","mb":29380.0},{"d":"09/30/2026 00:00:00","mb":29620.0},{"d":"10/01/2026 00:00:00","mb":29860.0},{"d":"10/02/2026 00:00:00","mb":30100.0}],"io":[{"file":"log","type":"LOG","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11},{"file":"data_0","type":"ROWS","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11}],"missingIndexes":[{"schema":"dbo","table":"Orders","eq":"CustomerId","ineq":"OrderDate","inc":"Status, Total","seeks":184000,"impact":94.2,"score":1734280.0,"stmt":"CREATE INDEX IX_Orders_Suggested ON dbo.Orders (CustomerId) INCLUDE (Status, Total);"},{"schema":"dbo","table":"LineItems","eq":"OrderId","ineq":"","inc":"Qty, Price","seeks":92000,"impact":88.1,"score":810520.0,"stmt":"CREATE INDEX IX_LineItems_Suggested ON dbo.LineItems (OrderId) INCLUDE (Qty, Price);"},{"schema":"dbo","table":"AuditLog","eq":"Action","ineq":"Created","inc":"","seeks":41000,"impact":72.4,"score":296840.0,"stmt":"CREATE INDEX IX_AuditLog_Suggested ON dbo.AuditLog (Action);"}],"unusedIndexes":[{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","sizeMB":2140.0,"reads":1020,"updates":940000,"verdict":"Write-heavy - 10x more maintained than read","ddl":"DROP INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog];"},{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","sizeMB":310.0,"reads":0,"updates":184000,"verdict":"DROP CANDIDATE - never read, maintained on every write","ddl":"DROP INDEX [IX_Orders_Status] ON [dbo].[Orders];"}],"fragmentation":[{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","frag":62.4,"pages":104000,"mb":812.5,"action":"REBUILD","ddl":"ALTER INDEX [IX_Orders_Status] ON [dbo].[Orders] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","frag":44.1,"pages":274000,"mb":2140.63,"action":"REBUILD","ddl":"ALTER INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"Customers","index":"IX_Customers_Email","frag":18.2,"pages":11800,"mb":92.19,"action":"REORGANIZE","ddl":"ALTER INDEX [IX_Customers_Email] ON [dbo].[Customers] REORGANIZE;"}],"tables":[{"schema":"dbo","name":"AuditLog","rows":18400000,"totalMB":4280.0,"dataMB":2140.0,"indexMB":2140.0},{"schema":"dbo","name":"Orders","rows":4200000,"totalMB":1960.0,"dataMB":1130.0,"indexMB":830.0},{"schema":"dbo","name":"LineItems","rows":11800000,"totalMB":1420.0,"dataMB":980.0,"indexMB":440.0},{"schema":"dbo","name":"Customers","rows":880000,"totalMB":188.0,"dataMB":96.0,"indexMB":92.0}],"securityDrift":[{"type":"PRINCIPAL ADDED","severity":"Warning","subject":"contractor_jsmith","detail":"type=EXTERNAL_USER, auth=EXTERNAL, roles=db_datareader","date":"10/02/2026 00:00:00"},{"type":"ROLE MEMBERSHIP CHANGED","severity":"Critical","subject":"svc_orders","detail":"was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]","date":"10/02/2026 00:00:00"}],"auditEvents":[],"auth":[],"collectors":[{"tier":"Frequent","lastSuccess":"2026-10-02T17:26:50","ageMin":3,"failures24h":0,"attempts24h":0,"limitMin":20,"status":"OK","lastError":""},{"tier":"Standard","lastSuccess":"2026-10-02T17:16:50","ageMin":13,"failures24h":0,"attempts24h":0,"limitMin":90,"status":"OK","lastError":""},{"tier":"Daily","lastSuccess":"2026-10-02T14:28:50","ageMin":181,"failures24h":0,"attempts24h":0,"limitMin":1560,"status":"OK","lastError":""}],"xe":[{"session":"ehd_errors","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"},{"session":"ehd_blocking","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"}]},{"id":"sql-stage-neu.database.windows.net|OrdersDb","server":"sql-stage-neu.database.windows.net","database":"OrdersDb","edition":"BusinessCritical","slo":"BC_Gen5_8","environment":"Staging","owner":"retail-team@contoso.com","vendorOwned":false,"kpi":{"cpu":41.1,"dataIo":19.95,"logWrite":17.96,"memory":57.86,"workers":26.78,"sessions":19.57,"storagePct":34.18,"healthScore":100,"worstDimension":"CPU","peakPercent":42.44},"alerts":[{"severity":"Critical","code":"SECURITY_PRIVILEGE","category":"Security","message":"1 principal(s) gained high privilege since the last snapshot.","ageMinutes":1,"detail":"svc_orders: was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]"},{"severity":"Warning","code":"SECURITY_DRIFT","category":"Security","message":"1 principal or role change(s) since the last snapshot.","ageMinutes":1,"detail":"Compare snapshots: SELECT * FROM core.vw_SecurityDrift WHERE ServerName = 'sql-stage-neu.database.windows.net' AND DatabaseName = 'OrdersDb';"},{"severity":"Info","code":"FRAGMENTATION","category":"Maintenance","message":"2 indexes are over 30.00% fragmented.","ageMinutes":1,"detail":"core.vw_FragmentationWork generates the exact ALTER INDEX statements, ONLINE and RESUMABLE. Nothing is executed automatically - this system never writes to a target."}],"resourceHourly":[{"h":"17:00","cpu":40.79,"io":19.8,"log":17.82,"mem":57.42,"wrk":26.0,"ses":19.0},{"h":"18:00","cpu":41.41,"io":20.1,"log":18.09,"mem":58.29,"wrk":27.3,"ses":19.95},{"h":"19:00","cpu":28.43,"io":13.8,"log":12.42,"mem":40.02,"wrk":18.46,"ses":13.49},{"h":"20:00","cpu":29.97,"io":14.55,"log":13.1,"mem":42.2,"wrk":19.76,"ses":14.44},{"h":"21:00","cpu":29.46,"io":14.3,"log":12.87,"mem":41.47,"wrk":19.76,"ses":14.44},{"h":"22:00","cpu":15.45,"io":7.5,"log":6.75,"mem":21.75,"wrk":10.92,"ses":7.98},{"h":"23:00","cpu":15.55,"io":7.55,"log":6.8,"mem":21.9,"wrk":11.18,"ses":8.17},{"h":"00:00","cpu":15.66,"io":7.6,"log":6.84,"mem":22.04,"wrk":10.92,"ses":7.98},{"h":"01:00","cpu":15.66,"io":7.6,"log":6.84,"mem":22.04,"wrk":11.18,"ses":8.17},{"h":"02:00","cpu":14.01,"io":6.8,"log":6.12,"mem":19.72,"wrk":8.84,"ses":6.46},{"h":"03:00","cpu":16.58,"io":8.05,"log":7.25,"mem":23.35,"wrk":10.92,"ses":7.98},{"h":"04:00","cpu":15.97,"io":7.75,"log":6.98,"mem":22.48,"wrk":10.92,"ses":7.98},{"h":"05:00","cpu":14.73,"io":7.15,"log":6.44,"mem":20.74,"wrk":10.4,"ses":7.6},{"h":"06:00","cpu":30.08,"io":14.6,"log":13.14,"mem":42.34,"wrk":20.02,"ses":14.63},{"h":"07:00","cpu":28.33,"io":13.75,"log":12.38,"mem":39.88,"wrk":18.46,"ses":13.49},{"h":"08:00","cpu":41.3,"io":20.05,"log":18.05,"mem":58.15,"wrk":27.04,"ses":19.76},{"h":"09:00","cpu":41.41,"io":20.1,"log":18.09,"mem":58.29,"wrk":27.04,"ses":19.76},{"h":"10:00","cpu":40.58,"io":19.7,"log":17.73,"mem":57.13,"wrk":26.52,"ses":19.38},{"h":"11:00","cpu":40.79,"io":19.8,"log":17.82,"mem":57.42,"wrk":26.52,"ses":19.38},{"h":"12:00","cpu":40.27,"io":19.55,"log":17.6,"mem":56.7,"wrk":25.74,"ses":18.81},{"h":"13:00","cpu":40.69,"io":19.75,"log":17.78,"mem":57.28,"wrk":27.3,"ses":19.95},{"h":"14:00","cpu":41.3,"io":20.05,"log":18.05,"mem":58.15,"wrk":27.3,"ses":19.95},{"h":"15:00","cpu":40.69,"io":19.75,"log":17.78,"mem":57.28,"wrk":26.52,"ses":19.38},{"h":"16:00","cpu":40.99,"io":19.9,"log":17.91,"mem":57.71,"wrk":26.78,"ses":19.57},{"h":"17:00","cpu":41.41,"io":20.1,"log":18.09,"mem":58.29,"wrk":26.26,"ses":19.19}],"waits":[{"type":"LCK_M_X","sec":62.94,"pct":40.71,"count":230,"avgMs":298.55,"note":"Blocking - see the Blocking detail"},{"type":"PAGEIOLATCH_SH","sec":28.11,"pct":18.18,"count":3050,"avgMs":10.05,"note":"Reading data from storage - memory pressure or missing index"},{"type":"ASYNC_NETWORK_IO","sec":21.54,"pct":13.93,"count":4800,"avgMs":4.9,"note":"Client is not consuming results fast enough (not a SQL problem)"},{"type":"WRITELOG","sec":14.67,"pct":9.49,"count":6025,"avgMs":2.66,"note":"Log write latency - batch commits, check log rate governor"},{"type":"SOS_SCHEDULER_YIELD","sec":11.0,"pct":7.11,"count":23000,"avgMs":0.52,"note":"CPU pressure - queries queuing for a scheduler"},{"type":"CXPACKET","sec":9.32,"pct":6.03,"count":1175,"avgMs":8.65,"note":"Parallelism skew - review MAXDOP / cost threshold"},{"type":"RESOURCE_SEMAPHORE","sec":4.28,"pct":2.77,"count":27,"avgMs":172.81,"note":"Memory grant starvation - oversized grants or too few resources"},{"type":"LOG_RATE_GOVERNOR","sec":2.75,"pct":1.78,"count":80,"avgMs":37.5,"note":"THROTTLED: hitting the tier log write limit - scale up"}],"topQueries":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","execs":9200,"cpuSec":206.0,"avgMs":22.39,"reads":900.0,"plans":1,"sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"},{"obj":"dbo.usp_RecalculateTotals","hash":"0x7B1D55E9A0C4F332","execs":1200,"cpuSec":144.0,"avgMs":120.0,"reads":900.0,"plans":1,"sql":"UPDATE dbo.OrderTotals SET Amount = (SELECT SUM(li.Qty * li.Price) FROM dbo.LineItems li WHERE li.OrderId = dbo.OrderTotals.OrderId);"},{"obj":"(ad hoc)","hash":"0x3C8E07F1B6A29D44","execs":4800,"cpuSec":70.5,"avgMs":14.69,"reads":900.0,"plans":1,"sql":"SELECT TOP (1000) * FROM dbo.AuditLog WHERE Created > DATEADD(DAY,-1,SYSUTCDATETIME()) ORDER BY Created DESC;"},{"obj":"dbo.usp_SearchCustomers","hash":"0x5A0B9C8D7E6F1203","execs":22100,"cpuSec":48.0,"avgMs":2.17,"reads":900.0,"plans":1,"sql":"SELECT c.* FROM dbo.Customers c WHERE c.LastName LIKE @pattern + '%' AND c.IsActive = 1;"}],"regressions":[],"blocking":[],"errors":[],"deadlocks":[],"capacity":{"usedMB":11200.0,"maxMB":32768.0,"pctUsed":34.18,"growthPerDay":12.0,"daysUntilFull":1797,"projectedFull":"09/03/2031 17:29:58","verdict":"Comfortable","confidence":"High"},"spaceTrend":[{"d":"09/03/2026 00:00:00","mb":10852.0},{"d":"09/04/2026 00:00:00","mb":10864.0},{"d":"09/05/2026 00:00:00","mb":10876.0},{"d":"09/06/2026 00:00:00","mb":10888.0},{"d":"09/07/2026 00:00:00","mb":10900.0},{"d":"09/08/2026 00:00:00","mb":10912.0},{"d":"09/09/2026 00:00:00","mb":10924.0},{"d":"09/10/2026 00:00:00","mb":10936.0},{"d":"09/11/2026 00:00:00","mb":10948.0},{"d":"09/12/2026 00:00:00","mb":10960.0},{"d":"09/13/2026 00:00:00","mb":10972.0},{"d":"09/14/2026 00:00:00","mb":10984.0},{"d":"09/15/2026 00:00:00","mb":10996.0},{"d":"09/16/2026 00:00:00","mb":11008.0},{"d":"09/17/2026 00:00:00","mb":11020.0},{"d":"09/18/2026 00:00:00","mb":11032.0},{"d":"09/19/2026 00:00:00","mb":11044.0},{"d":"09/20/2026 00:00:00","mb":11056.0},{"d":"09/21/2026 00:00:00","mb":11068.0},{"d":"09/22/2026 00:00:00","mb":11080.0},{"d":"09/23/2026 00:00:00","mb":11092.0},{"d":"09/24/2026 00:00:00","mb":11104.0},{"d":"09/25/2026 00:00:00","mb":11116.0},{"d":"09/26/2026 00:00:00","mb":11128.0},{"d":"09/27/2026 00:00:00","mb":11140.0},{"d":"09/28/2026 00:00:00","mb":11152.0},{"d":"09/29/2026 00:00:00","mb":11164.0},{"d":"09/30/2026 00:00:00","mb":11176.0},{"d":"10/01/2026 00:00:00","mb":11188.0},{"d":"10/02/2026 00:00:00","mb":11200.0}],"io":[{"file":"log","type":"LOG","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11},{"file":"data_0","type":"ROWS","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11}],"missingIndexes":[{"schema":"dbo","table":"Orders","eq":"CustomerId","ineq":"OrderDate","inc":"Status, Total","seeks":184000,"impact":94.2,"score":1734280.0,"stmt":"CREATE INDEX IX_Orders_Suggested ON dbo.Orders (CustomerId) INCLUDE (Status, Total);"},{"schema":"dbo","table":"LineItems","eq":"OrderId","ineq":"","inc":"Qty, Price","seeks":92000,"impact":88.1,"score":810520.0,"stmt":"CREATE INDEX IX_LineItems_Suggested ON dbo.LineItems (OrderId) INCLUDE (Qty, Price);"},{"schema":"dbo","table":"AuditLog","eq":"Action","ineq":"Created","inc":"","seeks":41000,"impact":72.4,"score":296840.0,"stmt":"CREATE INDEX IX_AuditLog_Suggested ON dbo.AuditLog (Action);"}],"unusedIndexes":[{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","sizeMB":2140.0,"reads":1020,"updates":940000,"verdict":"Write-heavy - 10x more maintained than read","ddl":"DROP INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog];"},{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","sizeMB":310.0,"reads":0,"updates":184000,"verdict":"DROP CANDIDATE - never read, maintained on every write","ddl":"DROP INDEX [IX_Orders_Status] ON [dbo].[Orders];"}],"fragmentation":[{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","frag":62.4,"pages":104000,"mb":812.5,"action":"REBUILD","ddl":"ALTER INDEX [IX_Orders_Status] ON [dbo].[Orders] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","frag":44.1,"pages":274000,"mb":2140.63,"action":"REBUILD","ddl":"ALTER INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"Customers","index":"IX_Customers_Email","frag":18.2,"pages":11800,"mb":92.19,"action":"REORGANIZE","ddl":"ALTER INDEX [IX_Customers_Email] ON [dbo].[Customers] REORGANIZE;"}],"tables":[{"schema":"dbo","name":"AuditLog","rows":18400000,"totalMB":4280.0,"dataMB":2140.0,"indexMB":2140.0},{"schema":"dbo","name":"Orders","rows":4200000,"totalMB":1960.0,"dataMB":1130.0,"indexMB":830.0},{"schema":"dbo","name":"LineItems","rows":11800000,"totalMB":1420.0,"dataMB":980.0,"indexMB":440.0},{"schema":"dbo","name":"Customers","rows":880000,"totalMB":188.0,"dataMB":96.0,"indexMB":92.0}],"securityDrift":[{"type":"ROLE MEMBERSHIP CHANGED","severity":"Critical","subject":"svc_orders","detail":"was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]","date":"10/02/2026 00:00:00"},{"type":"PRINCIPAL ADDED","severity":"Warning","subject":"contractor_jsmith","detail":"type=EXTERNAL_USER, auth=EXTERNAL, roles=db_datareader","date":"10/02/2026 00:00:00"}],"auditEvents":[],"auth":[],"collectors":[{"tier":"Frequent","lastSuccess":"2026-10-02T17:26:50","ageMin":3,"failures24h":0,"attempts24h":0,"limitMin":20,"status":"OK","lastError":""},{"tier":"Standard","lastSuccess":"2026-10-02T17:16:50","ageMin":13,"failures24h":0,"attempts24h":0,"limitMin":90,"status":"OK","lastError":""},{"tier":"Daily","lastSuccess":"2026-10-02T14:28:50","ageMin":181,"failures24h":0,"attempts24h":0,"limitMin":1560,"status":"OK","lastError":""}],"xe":[{"session":"ehd_errors","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"},{"session":"ehd_blocking","state":"RUNNING","dropped":0,"buffers":0,"verdict":"OK"}]},{"id":"sql-stage-neu.database.windows.net|Sandbox","server":"sql-stage-neu.database.windows.net","database":"Sandbox","edition":"GeneralPurpose","slo":"GP_S_Gen5_1","environment":"Staging","owner":"dba@contoso.com","vendorOwned":false,"kpi":{"cpu":4.11,"dataIo":1.8,"logWrite":1.2,"memory":31.48,"workers":2.16,"sessions":1.85,"storagePct":8.39,"healthScore":0,"worstDimension":"NOT REPORTING","peakPercent":8.39},"alerts":[{"severity":"Critical","code":"SECURITY_PRIVILEGE","category":"Security","message":"1 principal(s) gained high privilege since the last snapshot.","ageMinutes":1,"detail":"svc_orders: was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]"},{"severity":"Critical","code":"COLLECTION_STALE","category":"Collection","message":"Collection has stopped. Last arrival 300 minutes ago.","ageMinutes":1,"detail":"Stale tiers: Frequent, Standard. Every other metric for this database is frozen at the last successful run and must not be trusted."},{"severity":"Warning","code":"XE_UNHEALTHY","category":"Collection","message":"An Extended Events session is stopped or dropping events - error and deadlock capture is incomplete.","ageMinutes":1,"detail":"Session ehd_errors: state=STOPPED, dropped events=0, dropped buffers=0 -> Session is not running - error capture is incomplete"},{"severity":"Warning","code":"SECURITY_DRIFT","category":"Security","message":"1 principal or role change(s) since the last snapshot.","ageMinutes":1,"detail":"Compare snapshots: SELECT * FROM core.vw_SecurityDrift WHERE ServerName = 'sql-stage-neu.database.windows.net' AND DatabaseName = 'Sandbox';"},{"severity":"Info","code":"FRAGMENTATION","category":"Maintenance","message":"2 indexes are over 30.00% fragmented.","ageMinutes":1,"detail":"core.vw_FragmentationWork generates the exact ALTER INDEX statements, ONLINE and RESUMABLE. Nothing is executed automatically - this system never writes to a target."}],"resourceHourly":[{"h":"17:00","cpu":4.12,"io":1.81,"log":1.21,"mem":31.56,"wrk":2.18,"ses":1.87},{"h":"18:00","cpu":4.15,"io":1.82,"log":1.22,"mem":31.79,"wrk":2.16,"ses":1.85},{"h":"19:00","cpu":2.95,"io":1.3,"log":0.86,"mem":22.61,"wrk":1.6,"ses":1.37},{"h":"20:00","cpu":2.98,"io":1.31,"log":0.87,"mem":22.84,"wrk":1.6,"ses":1.37},{"h":"21:00","cpu":2.9,"io":1.27,"log":0.85,"mem":22.22,"wrk":1.55,"ses":1.33},{"h":"22:00","cpu":1.54,"io":0.68,"log":0.45,"mem":11.78,"wrk":0.86,"ses":0.74},{"h":"23:00","cpu":1.62,"io":0.71,"log":0.47,"mem":12.4,"wrk":0.9,"ses":0.77},{"h":"00:00","cpu":1.54,"io":0.68,"log":0.45,"mem":11.78,"wrk":0.82,"ses":0.7},{"h":"01:00","cpu":1.56,"io":0.68,"log":0.46,"mem":11.93,"wrk":0.86,"ses":0.74},{"h":"02:00","cpu":1.48,"io":0.65,"log":0.43,"mem":11.3,"wrk":0.8,"ses":0.68},{"h":"03:00","cpu":1.59,"io":0.7,"log":0.47,"mem":12.17,"wrk":0.88,"ses":0.76},{"h":"04:00","cpu":1.67,"io":0.73,"log":0.49,"mem":12.8,"wrk":0.9,"ses":0.77},{"h":"05:00","cpu":1.72,"io":0.76,"log":0.5,"mem":13.19,"wrk":0.9,"ses":0.77},{"h":"06:00","cpu":2.92,"io":1.28,"log":0.86,"mem":22.37,"wrk":1.58,"ses":1.35},{"h":"07:00","cpu":2.93,"io":1.29,"log":0.86,"mem":22.45,"wrk":1.6,"ses":1.37},{"h":"08:00","cpu":4.21,"io":1.85,"log":1.23,"mem":32.26,"wrk":2.21,"ses":1.89},{"h":"09:00","cpu":4.19,"io":1.84,"log":1.23,"mem":32.11,"wrk":2.21,"ses":1.89},{"h":"10:00","cpu":4.08,"io":1.79,"log":1.19,"mem":31.24,"wrk":2.21,"ses":1.89},{"h":"11:00","cpu":4.16,"io":1.83,"log":1.22,"mem":31.87,"wrk":2.21,"ses":1.89},{"h":"12:00","cpu":4.11,"io":1.8,"log":1.2,"mem":31.48,"wrk":2.21,"ses":1.89},{"h":"13:00","cpu":4.13,"io":1.81,"log":1.21,"mem":31.64,"wrk":2.21,"ses":1.89},{"h":"14:00","cpu":4.15,"io":1.82,"log":1.22,"mem":31.79,"wrk":2.18,"ses":1.87},{"h":"15:00","cpu":4.14,"io":1.82,"log":1.21,"mem":31.71,"wrk":2.21,"ses":1.89},{"h":"16:00","cpu":4.09,"io":1.8,"log":1.2,"mem":31.32,"wrk":2.16,"ses":1.85},{"h":"17:00","cpu":4.16,"io":1.83,"log":1.22,"mem":31.87,"wrk":2.16,"ses":1.85}],"waits":[{"type":"LCK_M_X","sec":62.94,"pct":40.71,"count":230,"avgMs":298.55,"note":"Blocking - see the Blocking detail"},{"type":"PAGEIOLATCH_SH","sec":28.11,"pct":18.18,"count":3050,"avgMs":10.05,"note":"Reading data from storage - memory pressure or missing index"},{"type":"ASYNC_NETWORK_IO","sec":21.54,"pct":13.93,"count":4800,"avgMs":4.9,"note":"Client is not consuming results fast enough (not a SQL problem)"},{"type":"WRITELOG","sec":14.67,"pct":9.49,"count":6025,"avgMs":2.66,"note":"Log write latency - batch commits, check log rate governor"},{"type":"SOS_SCHEDULER_YIELD","sec":11.0,"pct":7.11,"count":23000,"avgMs":0.52,"note":"CPU pressure - queries queuing for a scheduler"},{"type":"CXPACKET","sec":9.32,"pct":6.03,"count":1175,"avgMs":8.65,"note":"Parallelism skew - review MAXDOP / cost threshold"},{"type":"RESOURCE_SEMAPHORE","sec":4.28,"pct":2.77,"count":27,"avgMs":172.81,"note":"Memory grant starvation - oversized grants or too few resources"},{"type":"LOG_RATE_GOVERNOR","sec":2.75,"pct":1.78,"count":80,"avgMs":37.5,"note":"THROTTLED: hitting the tier log write limit - scale up"}],"topQueries":[{"obj":"dbo.usp_GetOrderHistory","hash":"0x9F2C41A8D0E3B517","execs":9200,"cpuSec":206.0,"avgMs":22.39,"reads":900.0,"plans":1,"sql":"SELECT o.OrderId, o.OrderDate, c.CustomerName FROM dbo.Orders o JOIN dbo.Customers c ON c.Id = o.CustomerId WHERE o.OrderDate >= @since ORDER BY o.OrderDate DESC;"},{"obj":"dbo.usp_RecalculateTotals","hash":"0x7B1D55E9A0C4F332","execs":1200,"cpuSec":144.0,"avgMs":120.0,"reads":900.0,"plans":1,"sql":"UPDATE dbo.OrderTotals SET Amount = (SELECT SUM(li.Qty * li.Price) FROM dbo.LineItems li WHERE li.OrderId = dbo.OrderTotals.OrderId);"},{"obj":"(ad hoc)","hash":"0x3C8E07F1B6A29D44","execs":4800,"cpuSec":70.5,"avgMs":14.69,"reads":900.0,"plans":1,"sql":"SELECT TOP (1000) * FROM dbo.AuditLog WHERE Created > DATEADD(DAY,-1,SYSUTCDATETIME()) ORDER BY Created DESC;"},{"obj":"dbo.usp_SearchCustomers","hash":"0x5A0B9C8D7E6F1203","execs":22100,"cpuSec":48.0,"avgMs":2.17,"reads":900.0,"plans":1,"sql":"SELECT c.* FROM dbo.Customers c WHERE c.LastName LIKE @pattern + '%' AND c.IsActive = 1;"}],"regressions":[],"blocking":[],"errors":[],"deadlocks":[],"capacity":{"usedMB":2750.0,"maxMB":32768.0,"pctUsed":8.39,"growthPerDay":1.0,"daysUntilFull":null,"projectedFull":"n/a","verdict":"No wall within 10 years","confidence":"High"},"spaceTrend":[{"d":"09/03/2026 00:00:00","mb":2721.0},{"d":"09/04/2026 00:00:00","mb":2722.0},{"d":"09/05/2026 00:00:00","mb":2723.0},{"d":"09/06/2026 00:00:00","mb":2724.0},{"d":"09/07/2026 00:00:00","mb":2725.0},{"d":"09/08/2026 00:00:00","mb":2726.0},{"d":"09/09/2026 00:00:00","mb":2727.0},{"d":"09/10/2026 00:00:00","mb":2728.0},{"d":"09/11/2026 00:00:00","mb":2729.0},{"d":"09/12/2026 00:00:00","mb":2730.0},{"d":"09/13/2026 00:00:00","mb":2731.0},{"d":"09/14/2026 00:00:00","mb":2732.0},{"d":"09/15/2026 00:00:00","mb":2733.0},{"d":"09/16/2026 00:00:00","mb":2734.0},{"d":"09/17/2026 00:00:00","mb":2735.0},{"d":"09/18/2026 00:00:00","mb":2736.0},{"d":"09/19/2026 00:00:00","mb":2737.0},{"d":"09/20/2026 00:00:00","mb":2738.0},{"d":"09/21/2026 00:00:00","mb":2739.0},{"d":"09/22/2026 00:00:00","mb":2740.0},{"d":"09/23/2026 00:00:00","mb":2741.0},{"d":"09/24/2026 00:00:00","mb":2742.0},{"d":"09/25/2026 00:00:00","mb":2743.0},{"d":"09/26/2026 00:00:00","mb":2744.0},{"d":"09/27/2026 00:00:00","mb":2745.0},{"d":"09/28/2026 00:00:00","mb":2746.0},{"d":"09/29/2026 00:00:00","mb":2747.0},{"d":"09/30/2026 00:00:00","mb":2748.0},{"d":"10/01/2026 00:00:00","mb":2749.0},{"d":"10/02/2026 00:00:00","mb":2750.0}],"io":[{"file":"log","type":"LOG","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11},{"file":"data_0","type":"ROWS","readMs":4.29,"writeMs":2.69,"readMB":0.18,"writeMB":0.11}],"missingIndexes":[{"schema":"dbo","table":"Orders","eq":"CustomerId","ineq":"OrderDate","inc":"Status, Total","seeks":184000,"impact":94.2,"score":1734280.0,"stmt":"CREATE INDEX IX_Orders_Suggested ON dbo.Orders (CustomerId) INCLUDE (Status, Total);"},{"schema":"dbo","table":"LineItems","eq":"OrderId","ineq":"","inc":"Qty, Price","seeks":92000,"impact":88.1,"score":810520.0,"stmt":"CREATE INDEX IX_LineItems_Suggested ON dbo.LineItems (OrderId) INCLUDE (Qty, Price);"},{"schema":"dbo","table":"AuditLog","eq":"Action","ineq":"Created","inc":"","seeks":41000,"impact":72.4,"score":296840.0,"stmt":"CREATE INDEX IX_AuditLog_Suggested ON dbo.AuditLog (Action);"}],"unusedIndexes":[{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","sizeMB":2140.0,"reads":1020,"updates":940000,"verdict":"Write-heavy - 10x more maintained than read","ddl":"DROP INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog];"},{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","sizeMB":310.0,"reads":0,"updates":184000,"verdict":"DROP CANDIDATE - never read, maintained on every write","ddl":"DROP INDEX [IX_Orders_Status] ON [dbo].[Orders];"}],"fragmentation":[{"schema":"dbo","table":"Orders","index":"IX_Orders_Status","frag":62.4,"pages":104000,"mb":812.5,"action":"REBUILD","ddl":"ALTER INDEX [IX_Orders_Status] ON [dbo].[Orders] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"AuditLog","index":"IX_AuditLog_Created","frag":44.1,"pages":274000,"mb":2140.63,"action":"REBUILD","ddl":"ALTER INDEX [IX_AuditLog_Created] ON [dbo].[AuditLog] REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAXDOP = 2);"},{"schema":"dbo","table":"Customers","index":"IX_Customers_Email","frag":18.2,"pages":11800,"mb":92.19,"action":"REORGANIZE","ddl":"ALTER INDEX [IX_Customers_Email] ON [dbo].[Customers] REORGANIZE;"}],"tables":[{"schema":"dbo","name":"AuditLog","rows":18400000,"totalMB":4280.0,"dataMB":2140.0,"indexMB":2140.0},{"schema":"dbo","name":"Orders","rows":4200000,"totalMB":1960.0,"dataMB":1130.0,"indexMB":830.0},{"schema":"dbo","name":"LineItems","rows":11800000,"totalMB":1420.0,"dataMB":980.0,"indexMB":440.0},{"schema":"dbo","name":"Customers","rows":880000,"totalMB":188.0,"dataMB":96.0,"indexMB":92.0}],"securityDrift":[{"type":"PRINCIPAL ADDED","severity":"Warning","subject":"contractor_jsmith","detail":"type=EXTERNAL_USER, auth=EXTERNAL, roles=db_datareader","date":"10/02/2026 00:00:00"},{"type":"ROLE MEMBERSHIP CHANGED","severity":"Critical","subject":"svc_orders","detail":"was [db_datareader, db_datawriter] now [db_datareader, db_datawriter, db_owner]","date":"10/02/2026 00:00:00"}],"auditEvents":[],"auth":[],"collectors":[{"tier":"Frequent","lastSuccess":"2026-10-02T12:28:50","ageMin":301,"failures24h":0,"attempts24h":0,"limitMin":20,"status":"CRITICAL","lastError":""},{"tier":"Standard","lastSuccess":"2026-10-02T12:28:50","ageMin":301,"failures24h":0,"attempts24h":0,"limitMin":90,"status":"CRITICAL","lastError":""},{"tier":"Daily","lastSuccess":"2026-10-02T12:28:50","ageMin":301,"failures24h":0,"attempts24h":0,"limitMin":1560,"status":"OK","lastError":""}],"xe":[{"session":"ehd_errors","state":"STOPPED","dropped":0,"buffers":0,"verdict":"Session is not running - error capture is incomplete"}]}]}/*__DATA_END__*/;
+
+/* =========================================================================
+   Helpers
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const num = (n, d = 0) =>
+  n == null || isNaN(n) ? "&mdash;"
+  : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const sevClass = (v, w = 70, b = 85) => v >= b ? "bad" : v >= w ? "warn" : "ok";
+const sevBg    = (v, w = 70, b = 85) => v >= b ? "bg-bad" : v >= w ? "bg-warn" : "bg-ok";
+function tagFor(sev) {
+  const s = String(sev || "").toLowerCase();
+  if (s.startsWith("crit") || s === "fail" || s === "never" || s === "unreachable") return "t-crit";
+  if (s.startsWith("warn")) return "t-warn";
+  if (s.startsWith("info")) return "t-info";
+  if (s === "none") return "t-mute";
+  return "t-ok";
+}
+function ago(min) {
+  if (min == null) return "";
+  if (min < 60) return min + "m ago";
+  if (min < 1440) return Math.round(min / 60) + "h ago";
+  return Math.round(min / 1440) + "d ago";
+}
+/* same scale, but phrased as a duration rather than a point in the past.
+   Rounding matters here: this renders the staleness LIMIT, and Math.round
+   turned the 90-minute Standard limit into "2h", which does not match any
+   number in cfg.Setting. A limit that disagrees with its configured value is
+   worse than no limit at all, so keep one decimal when rounding would lie. */
+function dur(min) {
+  if (min == null) return "\u2014";
+  if (min < 60) return min + "m";
+  if (min < 1440) {
+    const h = min / 60;
+    return (Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")) + "h";
+  }
+  const d = min / 1440;
+  return (Number.isInteger(d) ? d : d.toFixed(1).replace(/\.0$/, "")) + "d";
+}
+/* age of a collector, or a dash when it has never succeeded */
+function collAge(c) {
+  return (c.status === "NEVER" || !c.lastSuccess) ? "\u2014" : ago(c.ageMin);
+}
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const shortServer = (s) => String(s).replace(/\.database\.windows\.net$/i, "");
+
+/* ---------------------------------------------------------------- charts */
+function lineChart(el, rows, series, opts) {
+  opts = opts || {};
+  const W = 100, H = opts.height || 46;
+  const padL = 9, padR = 4, padT = 3, padB = 7;
+  const xs = rows.length;
+  if (!xs) { el.innerHTML = '<div class="empty">No data in this window</div>'; return; }
+
+  const maxY = opts.max != null ? opts.max
+    : Math.max(1, ...series.flatMap(s => rows.map(r => Number(r[s.key]) || 0))) * 1.12;
+  const px = (i) => padL + (i * (W - padL - padR)) / Math.max(1, xs - 1);
+  const py = (v) => padT + (H - padT - padB) * (1 - (Number(v) || 0) / maxY);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${opts.pxHeight || 230}" preserveAspectRatio="none" role="img">`;
+  const ticks = opts.ticks || 4;
+  const yFmt = opts.yFmt || ((v) => Math.round(v) + (opts.unit || ""));
+  for (let t = 0; t <= ticks; t++) {
+    const v = (maxY / ticks) * t, y = py(v);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${cssVar('--cp-border')}" stroke-width="0.15"/>`;
+    svg += `<text x="${padL - 0.8}" y="${y + 1}" font-size="2.2" text-anchor="end" fill="${cssVar('--cp-text-soft')}">${yFmt(v)}</text>`;
+  }
+  if (opts.threshold != null && opts.threshold <= maxY) {
+    const y = py(opts.threshold);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${cssVar('--cp-danger')}" stroke-width="0.25" stroke-dasharray="1.2 1"/>`;
+  }
+  series.forEach(s => {
+    const pts = rows.map((r, i) => `${px(i)},${py(r[s.key])}`).join(" ");
+    if (s.fill) svg += `<polygon points="${padL},${py(0)} ${pts} ${px(xs-1)},${py(0)}" fill="${s.color}" opacity="0.12"/>`;
+    svg += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.w || 0.55}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  const step = Math.max(1, Math.ceil(xs / (opts.xLabels || 8)));
+  rows.forEach((r, i) => {
+    if (i % step === 0 || i === xs - 1)
+      svg += `<text x="${px(i)}" y="${H - 1.4}" font-size="2.2" text-anchor="middle" fill="${cssVar('--cp-text-soft')}">${esc(r[opts.xKey || "h"])}</text>`;
+  });
+  el.innerHTML = svg + "</svg>";
+}
+
+function barChart(el, rows, key, xKey, opts) {
+  opts = opts || {};
+  const W = 100, H = 34, padL = 5, padR = 1, padT = 3, padB = 7;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+  const maxY = Math.max(1, ...rows.map(r => Number(r[key]) || 0));
+  const bw = (W - padL - padR) / rows.length;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${opts.pxHeight || 150}" preserveAspectRatio="none">`;
+  svg += `<line x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" stroke="${cssVar('--cp-border')}" stroke-width="0.2"/>`;
+  rows.forEach((r, i) => {
+    const v = Number(r[key]) || 0;
+    const h = ((H - padT - padB) * v) / maxY;
+    const x = padL + i * bw + bw * 0.18;
+    svg += `<rect x="${x}" y="${H - padB - h}" width="${bw * 0.64}" height="${Math.max(h, 0.12)}" rx="0.4"
+             fill="${v === 0 ? cssVar('--cp-border') : (opts.color || cssVar('--cp-accent'))}"/>`;
+    if (v > 0) svg += `<text x="${x + bw*0.32}" y="${H - padB - h - 0.9}" font-size="2.1" text-anchor="middle" fill="${cssVar('--cp-text-muted')}">${v}</text>`;
+    const step = Math.max(1, Math.ceil(rows.length / 10));
+    if (i % step === 0 || i === rows.length - 1)
+      svg += `<text x="${x + bw*0.32}" y="${H - 1.4}" font-size="2.1" text-anchor="middle" fill="${cssVar('--cp-text-soft')}">${esc(r[xKey])}</text>`;
+  });
+  el.innerHTML = svg + "</svg>";
+}
+
+/* tiny inline sparkline for the fleet grid */
+function sparkline(rows, key, colour) {
+  if (!rows || !rows.length) return "";
+  const W = 74, H = 20, max = Math.max(1, ...rows.map(r => Number(r[key]) || 0));
+  const pts = rows.map((r, i) =>
+    `${(i * W) / Math.max(1, rows.length - 1)},${H - 2 - (H - 4) * ((Number(r[key]) || 0) / max)}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+    <polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="1.3"
+      stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function gauge(el, score) {
+  const r = 46, c = 2 * Math.PI * r, pct = Math.max(0, Math.min(100, score));
+  const col = pct >= 75 ? cssVar('--cp-success') : pct >= 45 ? cssVar('--cp-warning') : cssVar('--cp-danger');
+  el.innerHTML =
+    `<svg viewBox="0 0 110 110" width="116" height="116">
+       <circle cx="55" cy="55" r="${r}" fill="none" stroke="${cssVar('--cp-surface-soft')}" stroke-width="10"/>
+       <circle cx="55" cy="55" r="${r}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round"
+               stroke-dasharray="${(c * pct) / 100} ${c}" transform="rotate(-90 55 55)"/>
+     </svg><div class="num">${pct}<span>score</span></div>`;
+}
+
+function table(el, cols, rows, rowFn) {
+  if (!rows || !rows.length) {
+    el.innerHTML = `<tbody><tr><td><div class="empty"><b>Nothing to show</b>No rows for this window.</div></td></tr></tbody>`;
+    return;
+  }
+  el.innerHTML =
+    "<thead><tr>" + cols.map(c => `<th class="${c.num ? "num" : ""}">${esc(c.t)}</th>`).join("") + "</tr></thead>" +
+    "<tbody>" + rows.map(rowFn).join("") + "</tbody>";
+}
+
+/* =========================================================================
+   State  (persisted in location.hash - sandbox-safe, no localStorage)
+   ========================================================================= */
+const T = DATA.targets || [];
+T.forEach(t => {
+  t.critCount = (t.alerts || []).filter(a => a.severity === "Critical").length;
+  t.warnCount = (t.alerts || []).filter(a => a.severity === "Warning").length;
+  t.stale     = (t.collectors || []).some(c => c.status === "CRITICAL" || c.status === "NEVER");
+  t.collWorst = (t.collectors || []).some(c => c.status === "NEVER")    ? "NEVER"
+              : (t.collectors || []).some(c => c.status === "CRITICAL") ? "CRITICAL"
+              : (t.collectors || []).some(c => c.status === "WARNING")  ? "WARNING"
+              : (t.collectors || []).length ? "OK" : "NONE";
+});
+
+/* Databases registered in cfg.Target that have NEVER delivered a single row.
+   In this edition the generator makes exactly one connection - to the central
+   repository - so it can never "fail to reach" a target. What it CAN find is a
+   target that the Elastic Job has never successfully collected from.
+
+   Without this they would silently vanish from the fleet, which is the single
+   worst failure mode for a monitoring dashboard: a database that is fully down
+   is exactly the one you need to see. */
+(DATA.meta && DATA.meta.skipped ? DATA.meta.skipped : []).forEach(s => {
+  T.push({
+    /* The id MUST be built the same way the generator builds it for reporting
+       targets - "<full server>|<database>", with the FQDN intact. Stripping
+       ".database.windows.net" here produced a different id for the same
+       database, which broke deep links and meant a target silently changed
+       identity the moment it started reporting. */
+    id: `${s.server}|${s.database}`,
+    server: s.server, database: s.database,
+    edition: "\u2014", slo: "\u2014",
+    unreachable: true, reason: s.reason || "unknown",
+    critCount: 1, warnCount: 0, stale: true, collWorst: "NO DATA",
+    kpi: { cpu: null, dataIo: null, logWrite: null, memory: null, workers: null,
+           sessions: null, storagePct: null, healthScore: 0,
+           worstDimension: "not reporting", peakPercent: 0 },
+    alerts: [{ severity: "Critical", code: "COLLECTION_NEVER",
+               category: "Collection",
+               message: `No data has ever arrived from ${s.database}.`,
+               detail: s.reason || "unknown", ageMinutes: 0 }],
+    resourceHourly: [], waits: [], topQueries: [], regressions: [], blocking: [],
+    errors: [], deadlocks: [], io: [], spaceTrend: [], tables: [],
+    missingIndexes: [], unusedIndexes: [], fragmentation: [], securityDrift: [],
+    auth: [], auditEvents: [], collectors: [], xe: [],
+    capacity: { usedMB: 0, maxMB: 1, pctUsed: 0, dataMB: 0, indexMB: 0,
+                growthPerDay: 0, daysUntilFull: null, projectedFull: "n/a",
+                logPct: 0, tempdbPct: 0 }
+  });
+});
+
+const state = { tab: "fleet", srv: "*", db: "*", health: "*", find: "",
+                sortKey: "healthScore", sortDir: 1, autoPicked: false };
+
+function readHash() {
+  const h = new URLSearchParams(location.hash.replace(/^#/, ""));
+  if (h.get("tab"))    state.tab = h.get("tab");
+  if (h.get("srv"))    state.srv = decodeURIComponent(h.get("srv"));
+  if (h.get("db"))     state.db  = decodeURIComponent(h.get("db"));
+  if (h.get("health")) state.health = h.get("health");
+  if (h.get("find"))   state.find = decodeURIComponent(h.get("find"));
+}
+function writeHash() {
+  const h = new URLSearchParams();
+  h.set("tab", state.tab);
+  if (state.srv    !== "*") h.set("srv", state.srv);
+  if (state.db     !== "*") h.set("db", state.db);
+  if (state.health !== "*") h.set("health", state.health);
+  if (state.find)           h.set("find", state.find);
+  const s = "#" + h.toString();
+  if (location.hash !== s) history.replaceState(null, "", s);
+}
+
+/* the databases matching the current filters */
+function matching() {
+  const q = state.find.trim().toLowerCase();
+  return T.filter(t =>
+       (state.srv === "*" || t.server === state.srv)
+    && (state.health === "*"
+        || (state.health === "crit"  && t.critCount > 0)
+        || (state.health === "any"   && (t.alerts || []).length > 0)
+        || (state.health === "stale" && t.stale))
+    && (!q || t.database.toLowerCase().includes(q) || t.server.toLowerCase().includes(q)));
+}
+/* the single selected database, or null when viewing the fleet */
+function selected() {
+  if (state.db === "*") return null;
+  const t = T.find(x => x.id === state.db) || null;
+  // a never-reporting target has no detail to show - keep the fleet view instead
+  return (t && t.unreachable) ? null : t;
+}
+
+/* =========================================================================
+   Filter controls
+   ========================================================================= */
+function buildFilters() {
+  const servers = [...new Set(T.map(t => t.server))].sort();
+  $("selServer").innerHTML =
+    `<option value="*">All servers (${servers.length})</option>` +
+    servers.map(s => {
+      const n = T.filter(t => t.server === s).length;
+      const c = T.filter(t => t.server === s).reduce((a, t) => a + t.critCount, 0);
+      return `<option value="${esc(s)}"${s === state.srv ? " selected" : ""}>${esc(shortServer(s))} — ${n} db${n === 1 ? "" : "s"}${c ? ` (${c} critical)` : ""}</option>`;
+    }).join("");
+
+  const pool = matching();
+  const opts = pool.slice().sort((a, b) => a.database.localeCompare(b.database));
+  $("selDb").innerHTML =
+    `<option value="*">All databases (${pool.length})</option>` +
+    opts.map(t => {
+    const mark = t.unreachable ? " \u2717" : t.critCount ? " \u25CF" : t.warnCount ? " \u25CB" : "";
+      const srv = state.srv === "*" ? ` — ${shortServer(t.server)}` : "";
+    return `<option value="${esc(t.id)}"${t.id === state.db ? " selected" : ""}${t.unreachable ? " disabled" : ""}>${esc(t.database)}${srv}${mark}</option>`;
+    }).join("");
+
+  // if the selected db was filtered out, fall back to the fleet view
+  if (state.db !== "*" && !opts.some(t => t.id === state.db)) state.db = "*";
+  $("selDb").value = state.db;
+  $("selEnv").value = state.health;
+  $("txtFind").value = state.find;
+
+  const totalCrit = pool.reduce((a, t) => a + t.critCount, 0);
+  $("cntServer").innerHTML = `${servers.length} server${servers.length === 1 ? "" : "s"} monitored`;
+  $("cntDb").innerHTML = pool.length === T.length
+    ? `${T.length} database${T.length === 1 ? "" : "s"}`
+    : `<b style="color:var(--cp-accent)">${pool.length} of ${T.length}</b> match`;
+  if (totalCrit) $("cntDb").innerHTML += ` &middot; <span class="bad">${totalCrit} critical</span>`;
+}
+
+/* =========================================================================
+   Tabs
+   ========================================================================= */
+const TABS = [
+  ["fleet",       "Fleet",       true ],
+  ["overview",    "Overview",    false],
+  ["performance", "Performance", false],
+  ["queries",     "Queries",     false],
+  ["blocking",    "Blocking",    false],
+  ["capacity",    "Capacity",    false],
+  ["indexes",     "Indexes",     false],
+  ["security",    "Security",    false]
+];
+
+function buildTabs() {
+  const sel = selected();
+  const pool = matching().filter(t => !t.unreachable);
+  const badge = (id) => {
+    if (id === "fleet") return matching().reduce((a, t) => a + t.critCount, 0);
+    if (!sel) return 0;
+    if (id === "overview")    return sel.critCount;
+    if (id === "queries")     return (sel.regressions || []).filter(r => r.factor >= 3).length;
+    if (id === "blocking")    return (sel.blocking || []).length;
+    if (id === "security")    return (sel.securityDrift || []).filter(s => s.severity === "Critical").length;
+    return 0;
+  };
+  // Detail tabs are never dead ends. With no database chosen they stay clickable
+  // and jump to the unhealthiest one in the current selection, with a notice.
+  const noneLeft = pool.length === 0;
+  $("tabs").innerHTML = TABS.map(([id, label, always], i) => {
+    const dis = !always && noneLeft;
+    const b = badge(id);
+    const hint = (!always && !sel && !noneLeft) ? ' data-pick="1" title="Opens the database needing the most attention"' : "";
+    return (i === 1 ? '<span class="sep"></span>' : "") +
+      `<button data-t="${id}" class="${state.tab === id ? "active" : ""}${(!always && !sel && !noneLeft) ? " pending" : ""}"${dis ? " disabled" : ""}${hint}>` +
+      `${label}${b ? `<span class="pill">${b}</span>` : ""}</button>`;
+  }).join("") +
+  (!sel && !noneLeft
+    ? `<span class="tabhint">&larr; pick a database to see its detail, or just click a tab</span>`
+    : "");
+}
+
+/* the database that most needs attention in the current selection */
+function worstOf(list) {
+  return list.slice().sort((a, b) =>
+      b.critCount - a.critCount
+   || a.kpi.healthScore - b.kpi.healthScore
+   || b.warnCount - a.warnCount
+   || a.database.localeCompare(b.database))[0];
+}
+
+/* =========================================================================
+   FLEET view
+   ========================================================================= */
+const FLEET_COLS = [
+  { k: "database",    t: "Database" },
+  { k: "server",      t: "Server" },
+  { k: "slo",         t: "Tier" },
+  { k: "healthScore", t: "Health", num: true },
+  { k: "spark",       t: "CPU 24h" },
+  { k: "cpu",         t: "CPU", num: true },
+  { k: "dataIo",      t: "IO", num: true },
+  { k: "logWrite",    t: "Log", num: true },
+  { k: "storagePct",  t: "Storage", num: true },
+  { k: "critCount",   t: "Crit", num: true },
+  { k: "warnCount",   t: "Warn", num: true },
+  { k: "blocking",    t: "Blocking", num: true },
+  { k: "collWorst",   t: "Collection" }
+];
+
+function sortVal(t, k) {
+  switch (k) {
+    case "database": case "server": case "slo": case "collWorst": return String(t[k] ?? t.slo ?? "");
+    case "blocking": return (t.blocking || []).length;
+    case "critCount": case "warnCount": return t[k];
+    case "spark": return t.kpi.cpu;
+    default: return Number(t.kpi[k] ?? 0);
+  }
+}
+
+function renderFleet() {
+  const rows = matching().slice().sort((a, b) => {
+    const va = sortVal(a, state.sortKey), vb = sortVal(b, state.sortKey);
+    const c = typeof va === "string" ? va.localeCompare(vb) : va - vb;
+    return c * state.sortDir;
+  });
+
+  /* fleet KPI strip */
+  const crit = rows.reduce((a, t) => a + t.critCount, 0);
+  const warn = rows.reduce((a, t) => a + t.warnCount, 0);
+  const atRisk = rows.filter(t => !t.unreachable && t.kpi.healthScore <= 50).length;
+  const unreach = rows.filter(t => t.unreachable).length;
+  const staleN = rows.filter(t => t.stale && !t.unreachable).length;
+  const storGB = rows.reduce((a, t) => a + (t.capacity?.usedMB || 0), 0) / 1024;
+  const blocked = rows.reduce((a, t) => a + (t.blocking || []).length, 0);
+
+  /* Nearest capacity wall = the database that will run out of space soonest.
+     Only meaningful inside a planning horizon - a linear fit that says "full in
+     68 years" is noise, not a number, so it is reported as "none". */
+  const HORIZON_DAYS = 365;
+  const walls = rows.filter(t => !t.unreachable && t.capacity &&
+                                 t.capacity.daysUntilFull != null &&
+                                 t.capacity.daysUntilFull <= HORIZON_DAYS)
+                    .sort((a, b) => a.capacity.daysUntilFull - b.capacity.daysUntilFull);
+  const soonest = walls[0];
+  const wallVal  = soonest ? soonest.capacity.daysUntilFull : "\u2014";
+  const wallUnit = soonest ? " d" : "";
+  const wallFoot = soonest
+        ? `${soonest.database} \u00b7 ${num(soonest.capacity.growthPerDay, 0)} MB/day`
+        : `none within ${HORIZON_DAYS} days`;
+  const wallCol  = !soonest ? "ok"
+        : soonest.capacity.daysUntilFull <= 30 ? "bad"
+        : soonest.capacity.daysUntilFull <= 90 ? "warn" : "ok";
+
+  $("fleetKpi").innerHTML = [
+    ["Databases", rows.length, "", unreach ? `${unreach} never reported` : "in the current selection", unreach ? "warn" : "ok"],
+    ["Critical alerts", crit, "", warn + " warnings", crit ? "bad" : "ok"],
+    ["At risk", atRisk, "", "health score 50 or below", atRisk ? "warn" : "ok"],
+    ["Blocking chains", blocked, "", "across the selection", blocked ? "warn" : "ok"],
+    ["Not reporting", staleN + unreach, "",
+      unreach ? `${staleN} stale, ${unreach} never reported` : "stale collection pipelines",
+      (staleN + unreach) ? "bad" : "ok"],
+    ["Total storage", num(storGB, 0), " GB", "allocated and used", "ok"],
+    ["Runs out of space", wallVal, wallUnit, wallFoot, wallCol]
+  ].map(([l, v, u, f, c]) => `
+    <div class="card kpi">
+      <div class="label">${l}</div>
+      <div class="value ${c}">${v}<small>${u}</small></div>
+      <div class="foot">${esc(f)}</div>
+    </div>`).join("");
+
+  $("fleetCount").textContent = rows.length + (rows.length === 1 ? " database" : " databases");
+
+  /* scorecard */
+  const el = $("tblFleet");
+  if (!rows.length) {
+    el.innerHTML = `<tbody><tr><td><div class="empty"><b>No databases match</b>Loosen the filters above.</div></td></tr></tbody>`;
+  } else {
+    el.innerHTML =
+      "<thead><tr>" + FLEET_COLS.map(c =>
+        `<th class="sortable ${c.num ? "num" : ""} ${state.sortKey === c.k ? (state.sortDir === 1 ? "sort-asc" : "sort-desc") : ""}"
+             data-k="${c.k}">${esc(c.t)}</th>`).join("") + "</tr></thead><tbody>" +
+      rows.map(t => {
+        const k = t.kpi, hs = k.healthScore;
+        const hCol = hs >= 75 ? "ok" : hs >= 45 ? "warn" : "bad";
+
+        if (t.unreachable) {
+          return `<tr data-unreachable="1" title="${esc(t.reason)}">
+            <td><b class="bad">${esc(t.database)}</b>
+                <div style="font-size:11px;color:var(--cp-text-soft)">never reported</div></td>
+            <td style="color:var(--cp-text-muted)">${esc(shortServer(t.server))}</td>
+            <td><span class="tag t-mute">&mdash;</span></td>
+            <td class="num"><b class="bad">&mdash;</b></td>
+            <td colspan="5" style="color:var(--cp-danger);font-size:11.5px">${esc(t.reason)}</td>
+            <td class="num"><span class="tag t-crit">!</span></td>
+            <td class="num">&mdash;</td>
+            <td class="num">&mdash;</td>
+            <td><span class="tag t-crit">NO DATA</span></td>
+          </tr>`;
+        }
+
+        // which tiers are stale, so the column says WHAT is wrong not just THAT
+        const bad = (t.collectors || []).filter(c => c.status === "CRITICAL" || c.status === "NEVER");
+        const collCell = bad.length
+          ? `<span class="tag ${tagFor('CRITICAL')}">${esc(bad.map(c => c.tier).join(", "))}</span>`
+          : `<span class="tag ${tagFor(t.collWorst)}">${esc(t.collWorst)}</span>`;
+
+        return `<tr class="drill" data-id="${esc(t.id)}">
+          <td><b>${esc(t.database)}</b>
+              <div style="font-size:11px;color:var(--cp-text-soft)">${esc(k.worstDimension)}</div></td>
+          <td style="color:var(--cp-text-muted)">${esc(shortServer(t.server))}</td>
+          <td><span class="tag t-mute">${esc(t.slo)}</span></td>
+          <td class="num"><b class="${hCol}">${hs}</b></td>
+          <td>${sparkline(t.resourceHourly, "cpu", cssVar(hs >= 75 ? '--cp-success' : hs >= 45 ? '--cp-warning' : '--cp-danger'))}</td>
+          <td class="num ${sevClass(k.cpu)}">${num(k.cpu, 0)}%</td>
+          <td class="num ${sevClass(k.dataIo)}">${num(k.dataIo, 0)}%</td>
+          <td class="num ${sevClass(k.logWrite)}">${num(k.logWrite, 0)}%</td>
+          <td class="num ${sevClass(k.storagePct, 75, 85)}">${num(k.storagePct, 0)}%</td>
+          <td class="num">${t.critCount ? `<span class="tag t-crit">${t.critCount}</span>` : "\u2014"}</td>
+          <td class="num">${t.warnCount ? `<span class="tag t-warn">${t.warnCount}</span>` : "\u2014"}</td>
+          <td class="num">${(t.blocking || []).length || "\u2014"}</td>
+          <td>${collCell}</td>
+        </tr>`;
+      }).join("") + "</tbody>";
+  }
+
+  /* cross-fleet alert feed */
+  const feed = [];
+  rows.forEach(t => (t.alerts || []).forEach(a => feed.push({ ...a, t })));
+  feed.sort((a, b) => {
+    const r = { Critical: 1, Warning: 2, Info: 3 };
+    return (r[a.severity] || 9) - (r[b.severity] || 9) || a.ageMinutes - b.ageMinutes;
+  });
+  $("fleetAlertCount").textContent = feed.length + " open";
+  $("fleetAlerts").innerHTML = feed.length ? feed.map(a => {
+    const col = a.severity === "Critical" ? "var(--cp-danger)"
+              : a.severity === "Warning" ? "var(--cp-warning)" : "var(--cp-link)";
+    return `<div class="alert-row">
+      <span class="dot" style="background:${col}"></span>
+      <div class="body">
+        <div class="code"><span class="tag ${tagFor(a.severity)}">${esc(a.severity)}</span>
+          &nbsp;${esc(a.code)} <span style="font-weight:400;color:var(--cp-text-soft)">&middot; ${esc(a.category)}</span></div>
+        <div class="msg">${esc(a.message)}</div>
+        ${a.detail ? `<div class="det">${esc(a.detail)}</div>` : ""}
+      </div>
+      <div class="age">${ago(a.ageMinutes)}
+        <span class="src" data-id="${esc(a.t.id)}">${esc(a.t.database)} &rsaquo;</span></div>
+    </div>`;
+  }).join("") : `<div class="empty"><b>No open alerts</b>Every database in the selection is within threshold.</div>`;
+
+  /* pipeline health across the selection */
+  const pipe = [];
+  rows.forEach(t => (t.collectors || []).forEach(c => pipe.push({ ...c, t })));
+  pipe.sort((a, b) => b.ageMin - a.ageMin);
+  table($("tblFleetColl"),
+    [{t:"Database"},{t:"Tier"},{t:"Last success"},{t:"Age",num:true},{t:"Limit",num:true},{t:"Fails 24h",num:true},{t:"Status"},{t:"Last error"}],
+    pipe,
+    c => `<tr class="drill" data-id="${esc(c.t.id)}">
+      <td><b>${esc(c.t.database)}</b>
+          <div style="font-size:11px;color:var(--cp-text-soft)">${esc(shortServer(c.t.server))}</div></td>
+      <td>${esc(c.tier)}</td>
+      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(c.lastSuccess.replace("T", " ")) : '<span class="bad">never</span>'}</td>
+      <td class="num ${c.status === "CRITICAL" || c.status === "NEVER" ? "bad" : ""}">${collAge(c)}</td>
+      <td class="num" style="color:var(--cp-text-soft)">${dur(c.limitMin)}</td>
+      <td class="num ${c.failures24h ? "bad" : ""}" title="${c.attempts24h ? esc(c.failures24h + " of " + c.attempts24h + " attempts failed") : ""}">${
+          c.failures24h ? c.failures24h + (c.attempts24h ? `<span style="color:var(--cp-text-soft);font-weight:400">/${c.attempts24h}</span>` : "") : "0"}</td>
+      <td><span class="tag ${tagFor(c.status)}">${esc(c.status)}</span></td>
+      <td style="max-width:320px;font-size:11.5px;color:var(--cp-danger)" title="${esc(c.lastError || "")}">${
+          c.lastError ? esc(String(c.lastError).slice(0, 90)) + (String(c.lastError).length > 90 ? "\u2026" : "") : "<span style='color:var(--cp-text-soft)'>\u2014</span>"}</td></tr>`);
+
+  /* unreachable targets get their own explicit callout */
+  const dead = rows.filter(t => t.unreachable);
+  if (dead.length) {
+    $("tblFleetColl").insertAdjacentHTML("afterend",
+      `<div style="margin-top:14px;padding:11px 13px;border-radius:12px;
+                   background:var(--cp-accent-soft);border:1px solid var(--cp-danger);
+                   font-size:12.5px;color:var(--cp-text-muted)">
+        <b style="color:var(--cp-danger)">${dead.length} registered database(s) have never reported.</b>
+        They appear in cfg.Target but no Elastic Job step has ever landed a row for them:
+        <ul style="margin:6px 0 0;padding-left:18px">
+          ${dead.map(d => `<li><b style="color:var(--cp-text)">${esc(d.database)}</b>
+             on ${esc(shortServer(d.server))} &mdash; ${esc(d.reason)}</li>`).join("")}
+        </ul>
+      </div>`);
+  }
+}
+
+/* =========================================================================
+   DETAIL view (single database)
+   ========================================================================= */
+function crumbHtml(t) {
+  const pool = matching().filter(x => !x.unreachable);
+  const picked = state.autoPicked && pool.length > 1;
+  return `<button class="back" data-back="1">&lsaquo; Fleet</button>
+    <span><b style="color:var(--cp-text)">${esc(t.database)}</b> on ${esc(shortServer(t.server))}</span>
+    <span class="chip">${esc(t.edition)}</span>
+    <span class="chip">${esc(t.slo)}</span>
+    ${t.critCount ? `<span class="tag t-crit">${t.critCount} critical</span>` : ""}
+    ${t.warnCount ? `<span class="tag t-warn">${t.warnCount} warning</span>` : ""}
+    ${picked ? `<span class="autopick">Auto-selected as the most critical of ${pool.length}
+        &mdash; change it with the <b>Database</b> filter above</span>` : ""}`;
+}
+
+function renderDetail(t) {
+  ["Overview","Performance","Queries","Blocking","Capacity","Indexes","Security"]
+    .forEach(n => { const e = $("crumb" + n); if (e) e.innerHTML = crumbHtml(t); });
+
+  const K = t.kpi, C = t.capacity || {};
+
+  /* ---- KPI ---- */
+  $("kpiGrid").innerHTML = [
+    ["CPU", K.cpu, "%", "avg_cpu_percent", 70, 85],
+    ["Data IO", K.dataIo, "%", "avg_data_io_percent", 70, 85],
+    ["Log write", K.logWrite, "%", "avg_log_write_percent", 70, 85],
+    ["Memory", K.memory, "%", "avg_memory_usage_percent", 80, 90],
+    ["Workers", K.workers, "%", "max_worker_percent", 65, 80],
+    ["Sessions", K.sessions, "%", "max_session_percent", 65, 80],
+    ["Storage", K.storagePct, "%", "of MAXSIZE", 75, 85]
+  ].map(([l, v, u, f, w, b]) => `
+    <div class="card kpi">
+      <div class="label">${l}</div>
+      <div class="value ${sevClass(v, w, b)}">${num(v, 1)}<small>${u}</small></div>
+      <div class="bar"><i class="${sevBg(v, w, b)}" style="width:${Math.min(100, v)}%"></i></div>
+      <div class="foot">${esc(f)}</div>
+    </div>`).join("");
+
+  $("healthDetail").innerHTML = `
+    <div style="font-size:13px;font-weight:650;margin-bottom:4px" class="${sevClass(K.peakPercent)}">
+      ${K.healthScore >= 75 ? "Healthy" : K.healthScore >= 45 ? "Degraded" : "Under pressure"}</div>
+    <div style="font-size:12.5px;color:var(--cp-text-muted)">
+      Worst dimension is <b style="color:var(--cp-text)">${esc(K.worstDimension)}</b>
+      peaking at <b class="${sevClass(K.peakPercent)}">${num(K.peakPercent, 1)}%</b> in the window.</div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <span class="tag ${t.critCount ? "t-crit" : "t-ok"}">${t.critCount} critical</span>
+      <span class="tag ${t.warnCount ? "t-warn" : "t-ok"}">${t.warnCount} warning</span>
+      <span class="tag t-mute">${(t.blocking || []).length} blocking chain(s)</span>
+    </div>`;
+
+  $("alertCount").textContent = (t.alerts || []).length + " open";
+  $("alertList").innerHTML = (t.alerts || []).length ? t.alerts.map(a => {
+    const col = a.severity === "Critical" ? "var(--cp-danger)"
+              : a.severity === "Warning" ? "var(--cp-warning)" : "var(--cp-link)";
+    return `<div class="alert-row"><span class="dot" style="background:${col}"></span>
+      <div class="body">
+        <div class="code"><span class="tag ${tagFor(a.severity)}">${esc(a.severity)}</span>
+          &nbsp;${esc(a.code)} <span style="font-weight:400;color:var(--cp-text-soft)">&middot; ${esc(a.category)}</span></div>
+        <div class="msg">${esc(a.message)}</div>
+        ${a.detail ? `<div class="det">${esc(a.detail)}</div>` : ""}
+      </div><div class="age">${ago(a.ageMinutes)}</div></div>`;
+  }).join("") : `<div class="empty"><b>No open alerts</b>Everything is within threshold.</div>`;
+
+  table($("tblCollectors"),
+    [{t:"Tier"},{t:"Last success"},{t:"Age",num:true},{t:"Limit",num:true},{t:"Fails 24h",num:true},{t:"Status"},{t:"Last error"}],
+    t.collectors || [],
+    c => `<tr><td><b>${esc(c.tier)}</b></td>
+      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(c.lastSuccess.replace("T", " ")) : '<span class="bad">never</span>'}</td>
+      <td class="num ${c.status === "CRITICAL" || c.status === "NEVER" ? "bad" : ""}">${collAge(c)}</td>
+      <td class="num" style="color:var(--cp-text-soft)">${dur(c.limitMin)}</td>
+      <td class="num ${c.failures24h ? "bad" : ""}" title="${c.attempts24h ? esc(c.failures24h + " of " + c.attempts24h + " attempts failed") : ""}">${
+          c.failures24h ? c.failures24h + (c.attempts24h ? `<span style="color:var(--cp-text-soft);font-weight:400">/${c.attempts24h}</span>` : "") : "0"}</td>
+      <td><span class="tag ${tagFor(c.status)}">${esc(c.status)}</span></td>
+      <td style="max-width:340px;font-size:11.5px;color:var(--cp-danger)" title="${esc(c.lastError || "")}">${
+          c.lastError ? esc(String(c.lastError).slice(0, 110)) + (String(c.lastError).length > 110 ? "\u2026" : "") : "<span style='color:var(--cp-text-soft)'>\u2014</span>"}</td></tr>`);
+
+  table($("tblXe"),
+    [{t:"Session"},{t:"State"},{t:"Dropped",num:true},{t:"Verdict"}],
+    t.xe || [],
+    x => `<tr><td class="mono">${esc(x.session)}</td>
+      <td><span class="tag ${x.state === "RUNNING" ? "t-ok" : "t-mute"}">${esc(x.state)}</span></td>
+      <td class="num ${x.dropped > 1000 ? "warn" : ""}">${num(x.dropped)}</td>
+      <td style="color:var(--cp-text-muted)">${esc(x.verdict)}</td></tr>`);
+
+  /* ---- performance ---- */
+  const waits = t.waits || [];
+  const maxWait = Math.max(1, ...waits.map(w => w.sec));
+  $("waitList").innerHTML = waits.length ? waits.map(w => `
+    <div style="padding:9px 0;border-bottom:1px solid var(--cp-border)">
+      <div style="display:flex;gap:10px;align-items:baseline">
+        <b class="mono" style="font-size:12px">${esc(w.type)}</b>
+        <span style="margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px">
+          ${num(w.sec, 0)} s <span style="color:var(--cp-text-soft)">(${num(w.pct, 1)}%)</span></span></div>
+      <div class="wait-bar" style="width:${(w.sec / maxWait) * 100}%;margin:5px 0 4px;
+           background:${w.note.indexOf("THROTTLED") === 0 ? "var(--cp-danger)" : "var(--cp-accent)"}"></div>
+      <div style="font-size:11.5px;color:var(--cp-text-soft)">
+        ${num(w.count)} waits &middot; avg ${num(w.avgMs)} ms &mdash; ${esc(w.note)}</div>
+    </div>`).join("") : `<div class="empty"><b>No wait data</b>Collectors may not have run yet.</div>`;
+
+  table($("tblIo"),
+    [{t:"File"},{t:"Type"},{t:"Read ms",num:true},{t:"Write ms",num:true},{t:"Read MB/s",num:true},{t:"Write MB/s",num:true}],
+    t.io || [],
+    i => `<tr><td class="mono">${esc(i.file)}</td><td>${esc(i.type)}</td>
+      <td class="num ${i.readMs > 20 ? "bad" : i.readMs > 10 ? "warn" : "ok"}">${num(i.readMs,1)}</td>
+      <td class="num ${i.writeMs > 20 ? "bad" : i.writeMs > 10 ? "warn" : "ok"}">${num(i.writeMs,1)}</td>
+      <td class="num">${num(i.readMB,1)}</td><td class="num">${num(i.writeMB,1)}</td></tr>`);
+
+  table($("tblErrors"),
+    [{t:"Error"},{t:"Sev",num:true},{t:"Count",num:true},{t:"Message"},{t:"App"},{t:"Last seen"}],
+    t.errors || [],
+    e => `<tr><td class="mono"><b>${e.num}</b></td>
+      <td class="num ${e.sev >= 16 ? "bad" : "warn"}">${e.sev}</td>
+      <td class="num"><b>${num(e.count)}</b></td>
+      <td style="max-width:520px">${esc(e.msg)}</td>
+      <td style="color:var(--cp-text-muted)">${esc(e.app)}</td>
+      <td class="mono" style="font-size:11px;color:var(--cp-text-soft)">${esc((e.last||"").replace("T"," "))}</td></tr>`);
+
+  /* ---- queries ---- */
+  $("regCount").textContent = (t.regressions || []).length + " detected";
+  table($("tblReg"),
+    [{t:"Object"},{t:"Base avg CPU",num:true},{t:"Current",num:true},{t:"Factor",num:true},{t:"Plans \u0394",num:true},{t:"Verdict"},{t:"Statement"}],
+    t.regressions || [],
+    r => `<tr>
+      <td><b>${esc(r.obj)}</b><div class="mono" style="font-size:10.5px;color:var(--cp-text-soft)">${esc(r.hash)}</div></td>
+      <td class="num">${num(r.baseMs,1)} ms</td>
+      <td class="num ${r.factor >= 3 ? "bad" : r.factor >= 2 ? "warn" : ""}">${num(r.curMs,1)} ms</td>
+      <td class="num"><b class="${r.factor >= 3 ? "bad" : r.factor >= 2 ? "warn" : ""}">${num(r.factor,1)}&times;</b></td>
+      <td class="num">${r.planDelta > 0 ? "+" + r.planDelta : r.planDelta}</td>
+      <td><span class="tag ${r.factor >= 3 ? "t-crit" : r.factor >= 2 ? "t-warn" : "t-mute"}">${esc(r.verdict)}</span></td>
+      <td class="sql">${esc(r.sql)}</td></tr>`);
+
+  table($("tblQueries"),
+    [{t:"Object"},{t:"Execs",num:true},{t:"Total CPU",num:true},{t:"Avg",num:true},{t:"Avg reads",num:true},{t:"Plans",num:true},{t:"Statement"}],
+    t.topQueries || [],
+    q => `<tr>
+      <td><b>${esc(q.obj)}</b><div class="mono" style="font-size:10.5px;color:var(--cp-text-soft)">${esc(q.hash)}</div></td>
+      <td class="num">${num(q.execs)}</td><td class="num"><b>${num(q.cpuSec,0)} s</b></td>
+      <td class="num">${num(q.avgMs,1)} ms</td><td class="num">${num(q.reads)}</td>
+      <td class="num ${q.plans > 1 ? "warn" : ""}">${q.plans}</td>
+      <td class="sql">${esc(q.sql)}</td></tr>`);
+
+  /* ---- blocking ---- */
+  $("blockList").innerHTML = (t.blocking || []).length ? t.blocking.map(b => `
+    <div style="padding:14px 0;border-bottom:1px solid var(--cp-border)">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+        <span class="tag t-crit">Head blocker SPID ${b.head}</span>
+        <span class="tag ${b.status === "sleeping" ? "t-warn" : "t-mute"}">${esc(b.status)}</span>
+        <span class="tag t-mute">${esc(b.program)} &middot; ${esc(b.login)} &middot; ${esc(b.host)}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--cp-text-muted)">
+          ${b.incidents} incidents &middot; ${b.victims} victims &middot; depth ${b.depth} &middot;
+          max <b class="bad">${num(b.maxWaitSec,1)} s</b></span></div>
+      ${b.status === "sleeping" ? `<div style="font-size:12px;color:var(--cp-warning);margin-bottom:8px">
+        &#9888; The head blocker is <b>sleeping with an open transaction</b> &mdash; the application did not COMMIT.</div>` : ""}
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--cp-text-muted);font-weight:600">Blocker</div>
+      <div class="mono" style="font-size:11.5px;color:var(--cp-text-muted);margin:2px 0 8px;white-space:pre-wrap">${esc(b.blockerSql)}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--cp-text-muted);font-weight:600">Sample victim</div>
+      <div class="mono" style="font-size:11.5px;color:var(--cp-text-muted);margin-top:2px;white-space:pre-wrap">${esc(b.victimSql)}</div>
+      <div style="margin-top:8px;font-size:11.5px;color:var(--cp-text-soft)">Wait types: ${esc(b.waitTypes)}</div>
+    </div>`).join("") : `<div class="empty"><b>No blocking</b>No chains recorded in this window.</div>`;
+
+  /* ---- capacity ---- */
+  const recoverGB = (t.unusedIndexes || []).reduce((a, x) => a + x.sizeMB, 0) / 1024;
+  const wallSoon  = C.daysUntilFull != null;
+  $("capSummary").innerHTML = `
+    <div class="grid g-3" style="gap:10px">
+      ${[["Used", num(C.usedMB/1024,1)+" GB", "of " + num(C.maxMB/1024,0)+" GB"],
+         ["Growth", num(C.growthPerDay,0)+" MB", "per day"],
+         ["Runs out of space", wallSoon ? C.daysUntilFull + " d" : "\u2014",
+            wallSoon ? "on " + esc(C.projectedFull) : "no wall within 10 years"],
+         ["Log space", num(C.logPct,1)+"%", "used"],
+         ["tempdb", num(C.tempdbPct,1)+"%", "used"],
+         ["Index overhead", num(100*C.indexMB/Math.max(1,(C.dataMB+C.indexMB)),1)+"%", "of total"]
+        ].map(([l,v,f]) => `
+        <div style="padding:10px 12px;border:1px solid var(--cp-border);border-radius:12px;background:var(--cp-surface-soft)">
+          <div class="label" style="font-size:10.5px">${l}</div>
+          <div style="font-size:20px;font-weight:680;margin-top:2px">${v}</div>
+          <div class="foot">${f}</div></div>`).join("")}
+    </div>
+    <div style="margin-top:14px;padding:11px 13px;border-radius:12px;background:var(--cp-accent-soft);
+                border:1px solid var(--cp-border);font-size:12.5px;color:var(--cp-text-muted)">
+      ${wallSoon
+        ? `At the current rate this database reaches <b style="color:var(--cp-text)">MAXSIZE on ${esc(C.projectedFull)}</b>
+           (${C.daysUntilFull} days).`
+        : `Growth is flat or too slow to project &mdash; no capacity wall within 10 years.`}
+      ${recoverGB > 0.1 ? ` Dropping the unused indexes on the Indexes tab would recover
+        <b style="color:var(--cp-text)">${num(recoverGB,1)} GB</b>.` : ""}
+    </div>`;
+
+  table($("tblTables"),
+    [{t:"Table"},{t:"Rows",num:true},{t:"Total",num:true},{t:"Data",num:true},{t:"Index",num:true},{t:"Index %",num:true}],
+    t.tables || [],
+    x => `<tr><td><b>${esc(x.schema)}.${esc(x.name)}</b></td>
+      <td class="num">${num(x.rows)}</td><td class="num"><b>${num(x.totalMB/1024,1)} GB</b></td>
+      <td class="num">${num(x.dataMB/1024,1)} GB</td><td class="num">${num(x.indexMB/1024,1)} GB</td>
+      <td class="num">${num(100*x.indexMB/Math.max(1,x.totalMB),0)}%</td></tr>`);
+
+  /* ---- indexes ---- */
+  table($("tblMissing"),
+    [{t:"Table"},{t:"Equality"},{t:"Inequality"},{t:"Include"},{t:"Seeks",num:true},{t:"Impact",num:true},{t:"Score",num:true},{t:"CREATE statement"}],
+    t.missingIndexes || [],
+    m => `<tr><td><b>${esc(m.schema)}.${esc(m.table)}</b></td>
+      <td class="mono" style="font-size:11.5px">${esc(m.eq)}</td>
+      <td class="mono" style="font-size:11.5px">${esc(m.ineq || "\u2014")}</td>
+      <td class="mono" style="font-size:11.5px">${esc(m.inc || "\u2014")}</td>
+      <td class="num">${num(m.seeks)}</td><td class="num">${num(m.impact,1)}%</td>
+      <td class="num"><b>${num(m.score)}</b></td><td class="sql">${esc(m.stmt)}</td></tr>`);
+
+  table($("tblUnused"),
+    [{t:"Index"},{t:"Size",num:true},{t:"Reads",num:true},{t:"Writes",num:true},{t:"Verdict"}],
+    t.unusedIndexes || [],
+    u => `<tr><td><b>${esc(u.index)}</b><div style="font-size:11px;color:var(--cp-text-soft)">${esc(u.schema)}.${esc(u.table)}</div></td>
+      <td class="num"><b>${num(u.sizeMB,0)} MB</b></td>
+      <td class="num ${u.reads === 0 ? "bad" : ""}">${num(u.reads)}</td>
+      <td class="num">${num(u.updates)}</td>
+      <td style="font-size:11.5px;color:var(--cp-text-muted)">${esc(u.verdict)}</td></tr>`);
+
+  table($("tblFrag"),
+    [{t:"Index"},{t:"Frag",num:true},{t:"Pages",num:true},{t:"Size",num:true},{t:"Action"}],
+    t.fragmentation || [],
+    f => `<tr><td><b>${esc(f.index)}</b><div style="font-size:11px;color:var(--cp-text-soft)">${esc(f.schema)}.${esc(f.table)}</div></td>
+      <td class="num ${f.frag >= 30 ? "bad" : "warn"}">${num(f.frag,1)}%</td>
+      <td class="num">${num(f.pages)}</td><td class="num">${num(f.pages*8/1024,0)} MB</td>
+      <td><span class="tag ${f.action === "REBUILD" ? "t-warn" : "t-mute"}">${esc(f.action)}</span></td></tr>`);
+
+  /* ---- security ---- */
+  $("driftList").innerHTML = (t.securityDrift || []).length ? t.securityDrift.map(s => `
+    <div class="alert-row">
+      <span class="dot" style="background:${s.severity === "Critical" ? "var(--cp-danger)" : s.severity === "Warning" ? "var(--cp-warning)" : "var(--cp-link)"}"></span>
+      <div class="body">
+        <div class="code"><span class="tag ${tagFor(s.severity)}">${esc(s.severity)}</span>&nbsp;${esc(s.type)}</div>
+        <div class="msg"><b style="color:var(--cp-text)">${esc(s.subject)}</b> &mdash; ${esc(s.detail)}</div>
+      </div></div>`).join("")
+    : `<div class="empty"><b>No drift</b>Security fingerprint unchanged since the previous snapshot.</div>`;
+
+  table($("tblAudit"),
+    [{t:"Time (UTC)"},{t:"Action"},{t:"Result"},{t:"Principal"},{t:"Target"},{t:"Client IP"},{t:"App"},{t:"Statement"}],
+    t.auditEvents || [],
+    a => `<tr><td class="mono" style="font-size:11px">${esc((a.utc||"").replace("T"," "))}</td>
+      <td class="mono"><b>${esc(a.action)}</b></td>
+      <td><span class="tag ${a.ok ? "t-ok" : "t-crit"}">${a.ok ? "OK" : "FAILED"}</span></td>
+      <td>${esc(a.login)}</td><td>${esc(a.target || "\u2014")}</td>
+      <td class="mono" style="font-size:11.5px">${esc(a.ip)}</td>
+      <td style="color:var(--cp-text-muted)">${esc(a.app)}</td>
+      <td class="sql">${esc(a.stmt || "\u2014")}</td></tr>`);
+
+  drawDetailCharts(t);
+}
+
+function drawDetailCharts(t) {
+  const C = t.capacity || {};
+  lineChart($("chartResource"), t.resourceHourly || [], [
+    { key:"cpu", color: cssVar('--cp-accent'), w:0.7, fill:true },
+    { key:"io",  color: cssVar('--cp-link') },
+    { key:"log", color: cssVar('--cp-warning') },
+    { key:"mem", color: cssVar('--cp-success') },
+    { key:"wrk", color: cssVar('--cp-text-muted') }
+  ], { max:100, unit:"%", threshold:85, pxHeight:236, xLabels:8 });
+  $("legendResource").innerHTML = [
+    ["CPU", cssVar('--cp-accent')], ["Data IO", cssVar('--cp-link')],
+    ["Log write", cssVar('--cp-warning')], ["Memory", cssVar('--cp-success')],
+    ["Workers", cssVar('--cp-text-muted')], ["85% threshold", cssVar('--cp-danger')]
+  ].map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join("");
+
+  gauge($("gauge"), t.kpi.healthScore);
+  barChart($("chartDeadlock"), t.deadlocks || [], "n", "d", { pxHeight:150 });
+
+  lineChart($("chartSpace"), t.spaceTrend || [], [{ key:"mb", color: cssVar('--cp-accent'), w:0.7, fill:true }],
+    { xKey:"d", max: C.maxMB || 1, pxHeight:236, threshold:(C.maxMB || 0) * 0.85, xLabels:6,
+      yFmt: (v) => (v / 1024).toFixed(0) + "G" });
+  $("legendSpace").innerHTML =
+    `<span><i style="background:${cssVar('--cp-accent')}"></i>Used</span>` +
+    `<span><i style="background:${cssVar('--cp-danger')}"></i>85% of MAXSIZE</span>`;
+
+  lineChart($("chartAuth"), t.auth || [], [
+    { key:"ok",   color: cssVar('--cp-success'), w:0.6 },
+    { key:"fail", color: cssVar('--cp-danger'),  w:0.8, fill:true }
+  ], { pxHeight:236, xLabels:6 });
+  $("legendAuth").innerHTML =
+    `<span><i style="background:${cssVar('--cp-success')}"></i>Successful</span>` +
+    `<span><i style="background:${cssVar('--cp-danger')}"></i>Failed</span>`;
+}
+
+/* =========================================================================
+   Orchestration
+   ========================================================================= */
+function render() {
+  // If the filters have narrowed things to exactly one database there is no
+  // choice left to make - select it automatically so every tab just works.
+  const pool = matching().filter(t => !t.unreachable);
+  if (state.db === "*" && pool.length === 1) {
+    state.db = pool[0].id;
+    state.autoPicked = false;
+  }
+
+  const sel = selected();
+  if (!sel && state.tab !== "fleet") state.tab = "fleet";
+
+  buildFilters();
+  buildTabs();
+
+  document.querySelectorAll("section.panel").forEach(p => p.classList.remove("active"));
+  const panel = $("p-" + state.tab);
+  if (panel) panel.classList.add("active");
+
+  renderFleet();
+  if (sel) renderDetail(sel);
+
+  const M = DATA.meta || {};
+  const pool2 = matching();
+  $("hTitle").textContent = sel
+    ? `${sel.database} \u2014 health dashboard`
+    : "Enterprise Health Dashboard";
+  $("hSub").textContent = sel
+    ? sel.server
+    : `${T.length} database${T.length === 1 ? "" : "s"} across ${[...new Set(T.map(x => x.server))].length} server${[...new Set(T.map(x => x.server))].length === 1 ? "" : "s"}`;
+  $("hMeta").innerHTML = [
+    sel ? `<span class="chip">Edition <b>${esc(sel.edition)}</b></span>` : "",
+    sel ? `<span class="chip">SLO <b>${esc(sel.slo)}</b></span>` : "",
+    `<span class="chip">Showing <b>${pool2.length}</b> of ${T.length}</span>`,
+    `<span class="chip">Window <b>${M.windowHours || 24}h</b></span>`,
+    M.repositoryMB ? `<span class="chip">Repository <b>${num(Math.round(M.repositoryMB))} MB</b></span>` : "",
+    `<span class="chip">Generated <b>${esc((M.generatedUtc || "").replace("T", " ").replace("Z", " UTC"))}</b></span>`
+  ].filter(Boolean).join("");
+  $("fGen").textContent = (M.generatedUtc || "").replace("T", " ").replace("Z", " UTC");
+  $("fRows").textContent = M.collectionRows
+    ? num(M.collectionRows) + " rows in the central repository"
+    : "";
+
+  writeHash();
+}
+
+function goTo(id, tab) {
+  state.db = id;
+  state.autoPicked = false;
+  state.tab = tab || "overview";
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---- events ---- */
+$("tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-t]");
+  if (!b || b.disabled) return;
+  const id = b.dataset.t;
+
+  // clicking a detail tab with no database chosen is not an error - open the
+  // one that most needs attention and say so, rather than refusing.
+  if (id !== "fleet" && !selected()) {
+    const pool = matching().filter(t => !t.unreachable);
+    if (!pool.length) return;
+    const w = worstOf(pool);
+    state.db = w.id;
+    state.autoPicked = true;
+    state.tab = id;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
+  state.autoPicked = false;
+  state.tab = id;
+  render();
+});
+$("selServer").addEventListener("change", (e) => {
+  state.srv = e.target.value;
+  state.db = "*";
+  state.tab = "fleet";
+  render();
+});
+$("selDb").addEventListener("change", (e) => {
+  state.db = e.target.value;
+  state.autoPicked = false;
+  state.tab = state.db === "*" ? "fleet" : (state.tab === "fleet" ? "overview" : state.tab);
+  render();
+});
+$("selEnv").addEventListener("change", (e) => {
+  state.health = e.target.value; state.db = "*"; state.tab = "fleet"; render();
+});
+let findTimer;
+$("txtFind").addEventListener("input", (e) => {
+  clearTimeout(findTimer);
+  const v = e.target.value;
+  findTimer = setTimeout(() => { state.find = v; state.db = "*"; state.tab = "fleet"; render(); }, 180);
+});
+$("btnReset").addEventListener("click", () => {
+  state.srv = "*"; state.db = "*"; state.health = "*"; state.find = ""; state.tab = "fleet";
+  render();
+});
+document.body.addEventListener("click", (e) => {
+  const back = e.target.closest("[data-back]");
+  if (back) { state.db = "*"; state.tab = "fleet"; render(); return; }
+  const src = e.target.closest(".src[data-id]");
+  if (src) { goTo(src.dataset.id, "overview"); return; }
+  const th = e.target.closest("th.sortable[data-k]");
+  if (th) {
+    const k = th.dataset.k;
+    if (state.sortKey === k) state.sortDir *= -1;
+    else { state.sortKey = k; state.sortDir = (k === "database" || k === "server" || k === "slo") ? 1 : -1; }
+    renderFleet();
+    return;
+  }
+  const row = e.target.closest("tr.drill[data-id]");
+  if (row) goTo(row.dataset.id, "overview");
+});
+window.addEventListener("resize", () => { const s = selected(); if (s) drawDetailCharts(s); });
+
+/* ---- boot ---- */
+if (DATA.isSample) $("demoBanner").style.display = "flex";
+readHash();
+render();
+</script>
+</body>
+</html>
+
+

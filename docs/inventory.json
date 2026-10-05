@@ -1,0 +1,3180 @@
+{
+ "tables": [
+  {
+   "schema": "cfg",
+   "name": "Setting",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "comment": "CONFIGURATION",
+   "columns": [
+    {
+     "name": "SettingKey",
+     "type": "varchar(64)",
+     "nullable": "no",
+     "notes": "PK"
+    },
+    {
+     "name": "SettingValue",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Description",
+     "type": "nvarchar(512)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ModifiedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "cfg",
+   "name": "Target",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "comment": "TARGET REGISTRY\nThe estate, as you want it reported - not merely what Elastic Jobs happens to\nreach. Rows appear here two ways:\n* you register them explicitly (recommended - lets you record Environment,\n  Owner, Criticality and, crucially, whether a target is vendor-owned)\n* core.usp_Normalize auto-registers anything that lands in staging\nA registered target that stops landing data is DETECTABLE. An unregistered one\nthat disappears is not - which is why explicit registration matters.",
+   "columns": [
+    {
+     "name": "TargetId",
+     "type": "int",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Environment",
+     "type": "varchar(32)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IsEnabled",
+     "type": "bit",
+     "nullable": "no",
+     "notes": "default 1"
+    },
+    {
+     "name": "Notes",
+     "type": "nvarchar(1000)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "FirstSeenUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    },
+    {
+     "name": "LastSeenUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT UQ_cfg_Target UNIQUE (ServerName, DatabaseName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "ActiveRequest",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "2. Active requests - SNAPSHOT",
+   "columns": [
+    {
+     "name": "ActiveRequestId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SessionId",
+     "type": "smallint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "RequestId",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Status",
+     "type": "varchar(30)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Command",
+     "type": "varchar(32)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitType",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitResource",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitTimeMs",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockingSessionId",
+     "type": "smallint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "OpenTranCount",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "CpuTimeMs",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TotalElapsedMs",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LogicalReads",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Writes",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "RowCountSoFar",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "GrantedMemoryKb",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Dop",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LoginName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "HostName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ProgramName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "QueryHash",
+     "type": "varchar(20)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SqlText",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "AlertHistory",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "ALERTING - one table for the whole estate",
+   "columns": [
+    {
+     "name": "AlertId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "RaisedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    },
+    {
+     "name": "AlertCode",
+     "type": "varchar(64)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Severity",
+     "type": "varchar(16)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Category",
+     "type": "varchar(32)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Metric",
+     "type": "varchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ObservedValue",
+     "type": "decimal(19,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ThresholdValue",
+     "type": "decimal(19,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Message",
+     "type": "nvarchar(1000)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Detail",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IsNotified",
+     "type": "bit",
+     "nullable": "no",
+     "notes": "default 0"
+    },
+    {
+     "name": "ResolvedUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "BlockingChain",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "3. Blocking chains - SNAPSHOT\n Polled at the job interval. Brief chains between polls are missed by this\n feed; the mon_ehd_blocking Extended Events session (02-targets) catches\n those continuously and is harvested into core.WaitEvent.",
+   "columns": [
+    {
+     "name": "BlockingChainId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "BlockedSessionId",
+     "type": "smallint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "BlockingSessionId",
+     "type": "smallint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "HeadBlockerSessionId",
+     "type": "smallint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ChainDepth",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitType",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitDurationMs",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ResourceDescription",
+     "type": "nvarchar(512)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockedLogin",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockedProgram",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockedSql",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockerLogin",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockerHost",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockerProgram",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockerStatus",
+     "type": "varchar(30)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BlockerSql",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "DatabaseSpace",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "8. Space - SNAPSHOT",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "AllocatedMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UsedMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "MaxSizeMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "PctOfMaxSize",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DataUsedMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IndexUsedMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ServiceObjective",
+     "type": "nvarchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Edition",
+     "type": "nvarchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_DatabaseSpace PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "Deadlock",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "DeadlockId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EventTimeUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "VictimProcessId",
+     "type": "nvarchar(50)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ProcessCount",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ObjectsInvolved",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "VictimSql",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "VictimLogin",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "VictimProgram",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DeadlockGraph",
+     "type": "xml",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "EventSequence",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "ErrorEvent",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "10. Errors and deadlocks - harvested from the target Extended Events ring\n  buffers. EventSequence + EventTimeUtc give a natural de-duplication key,\n  which matters because the ring buffer is re-read on every harvest and\n  returns the same events until they age out.",
+   "columns": [
+    {
+     "name": "ErrorEventId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EventTimeUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EventName",
+     "type": "sysname",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ErrorNumber",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Severity",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ErrorState",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Message",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SessionId",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LoginName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ProgramName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "HostName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SqlText",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "EventSequence",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "FeedArrival",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "comment": "Per-target, per-feed arrival tracking. Answers \"when did THIS database last\nsend me THIS kind of data?\" - the question that detects a silently dead\ntarget, which a global staleness check cannot.",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "FeedName",
+     "type": "varchar(64)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "LastRowCount",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_FeedArrival PRIMARY KEY CLUSTERED (ServerName, DatabaseName, FeedName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "IndexFragmentation",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SchemaName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TableName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "IndexName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "AvgFragmentationPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "PageCount",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "RecommendedAction",
+     "type": "computed",
+     "nullable": "",
+     "notes": "computed: (CASE WHEN AvgFragmentationPct >= 30 THEN 'REBUILD' WHEN AvgFragmentationPct >= 10 THEN 'REORGANIZE' ELSE 'NONE' END)"
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_IndexFrag PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotDate, SchemaName, TableName, IndexName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "IndexUsage",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "DAILY TIER",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SchemaName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TableName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "IndexName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "IndexType",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IsUnique",
+     "type": "bit",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IsPrimaryKey",
+     "type": "bit",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "KeyColumns",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IncludedColumns",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "RowCountEst",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SizeMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserSeeks",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserScans",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserLookups",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserUpdates",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_IndexUsage PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotDate, SchemaName, TableName, IndexName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "IoFileStats",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "9. IO - CUMULATIVE",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "FileId",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "FileName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TypeDesc",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "NumReads",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BytesRead",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IoStallReadMs",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "NumWrites",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "BytesWritten",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IoStallWriteMs",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SizeOnDiskMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_IoFileStats PRIMARY KEY CLUSTERED (ServerName, DatabaseName, FileId, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "LogSpace",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalLogSizeMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UsedLogSpaceMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UsedLogSpacePct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LogReuseWaitDesc",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "OldestTranBeginUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "OldestTranSessionId",
+     "type": "smallint",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_LogSpace PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "MissingIndex",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "MissingIndexId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SchemaName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TableName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "EqualityColumns",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "InequalityColumns",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IncludedColumns",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserSeeks",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgUserImpact",
+     "type": "float",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ImpactScore",
+     "type": "float",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "CreateStatement",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "ProcessRun",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "comment": "PROCESSING LOG\nOne row per normalization / alert / purge pass. This is the central\nequivalent of the embedded edition's mon.CollectionRun, and it is what the\nstaleness checks read.",
+   "columns": [
+    {
+     "name": "ProcessRunId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "StepName",
+     "type": "sysname",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "StartedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    },
+    {
+     "name": "CompletedUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DurationMs",
+     "type": "computed",
+     "nullable": "",
+     "notes": "computed: DATEDIFF_BIG(MILLISECOND, StartedUtc, CompletedUtc)"
+    },
+    {
+     "name": "Status",
+     "type": "varchar(20)",
+     "nullable": "no",
+     "notes": "default 'Running'"
+    },
+    {
+     "name": "RowsAffected",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ErrorNumber",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ErrorMessage",
+     "type": "nvarchar(2048)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "QueryStats",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "6. Query statistics - CUMULATIVE per (QueryHash, PlanHash)",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "QueryHash",
+     "type": "varchar(20)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "QueryPlanHash",
+     "type": "varchar(20)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ExecutionCount",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalWorkerTimeUs",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalElapsedTimeUs",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalLogicalReads",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalLogicalWrites",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalPhysicalReads",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalRows",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ObjectName",
+     "type": "nvarchar(512)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SampleSqlText",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_QueryStats PRIMARY KEY CLUSTERED (ServerName, DatabaseName, QueryHash, QueryPlanHash, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "QueryStoreTopQuery",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "7. Query Store extract - SNAPSHOT of a closed interval",
+   "columns": [
+    {
+     "name": "QueryStoreTopQueryId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "IntervalEndUtc",
+     "type": "datetimeoffset(7)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "QueryId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "PlanId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ObjectName",
+     "type": "nvarchar(512)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ExecutionCount",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgDurationMs",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgCpuMs",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TotalCpuMs",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgLogicalReads",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgTempDbSpaceKb",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgMemoryGrantKb",
+     "type": "decimal(19,3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TopWaitCategory",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "QueryText",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "ResourceUsage",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "1. Resource usage - SNAPSHOT\n sys.dm_db_resource_stats exposes 15-second samples for the trailing hour.\n The job pulls the whole window every 5 minutes and we de-duplicate on\n (target, EndTimeUtc). Overlapping pulls are therefore harmless, and a\n missed run self-heals on the next pass with no data loss at all.",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EndTimeUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "AvgCpuPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgDataIoPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgLogWritePct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgMemoryPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "MaxWorkerPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "MaxSessionPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "XtpStoragePct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AvgInstanceCpuPct",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DtuLimit",
+     "type": "decimal(9,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "CpuLimit",
+     "type": "decimal(9,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LandedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": "default SYSUTCDATETIME()"
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_ResourceUsage PRIMARY KEY CLUSTERED (ServerName, DatabaseName, EndTimeUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "SecurityPermission",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "GranteeName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ClassDesc",
+     "type": "nvarchar(60)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ObjectName",
+     "type": "nvarchar(512)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "PermissionName",
+     "type": "nvarchar(128)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "StateDesc",
+     "type": "nvarchar(60)",
+     "nullable": "no",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_SecPermission PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotDate, GranteeName, ClassDesc, ObjectName, PermissionName, StateDesc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "SecurityPrincipal",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "PrincipalName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TypeDesc",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AuthType",
+     "type": "nvarchar(60)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "CreateDateUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ModifyDateUtc",
+     "type": "datetime2(3)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "RoleMemberships",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_SecPrincipal PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotDate, PrincipalName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "ServiceObjectiveChange",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "12. Service objective change log - only written when something actually\n  changes, so it doubles as an audit trail of autoscale and manual resizes.",
+   "columns": [
+    {
+     "name": "ChangeId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DetectedUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "Edition",
+     "type": "nvarchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ServiceObjective",
+     "type": "nvarchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "MaxSizeMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "PreviousObjective",
+     "type": "nvarchar(64)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "SessionActivity",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "4. Session population - SNAPSHOT, pre-aggregated on the target",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "ProgramName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "LoginName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "HostName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SessionCount",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "RunningCount",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SleepingCount",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "BlockedCount",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "OpenTranCount",
+     "type": "int",
+     "nullable": "no",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_SessionActivity PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotUtc, ProgramName, LoginName, HostName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "TableSpace",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotDate",
+     "type": "date",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SchemaName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TableName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "RowCountEst",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "TotalMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DataMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "IndexMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_TableSpace PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotDate, SchemaName, TableName)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "TempDbUsage",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "TotalMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "AllocatedMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "PctUsed",
+     "type": "decimal(9,4)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "UserObjectsMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "InternalObjectsMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "VersionStoreMB",
+     "type": "decimal(19,2)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_TempDbUsage PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "WaitEvent",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "11. Long waits harvested from the blocking XE session - catches the chains\n  that fall between polls.",
+   "columns": [
+    {
+     "name": "WaitEventId",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": "IDENTITY; PK"
+    },
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EventTimeUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "EventName",
+     "type": "sysname",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "WaitType",
+     "type": "nvarchar(128)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DurationMs",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SessionId",
+     "type": "int",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "LoginName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "ProgramName",
+     "type": "nvarchar(256)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "SqlText",
+     "type": "nvarchar(max)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "EventSequence",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": []
+  },
+  {
+   "schema": "core",
+   "name": "WaitStats",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "5. Wait statistics - CUMULATIVE\n Raw counters land here; core.vw_WaitStatsDelta derives per-interval values\n with LAG() partitioned by (target, WaitType) and discards negative deltas,\n which indicate the counter was reset by a failover or scale operation.",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "WaitType",
+     "type": "nvarchar(60)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "WaitingTasksCount",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "WaitTimeMs",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "MaxWaitTimeMs",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SignalWaitTimeMs",
+     "type": "bigint",
+     "nullable": "no",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_WaitStats PRIMARY KEY CLUSTERED (ServerName, DatabaseName, WaitType, SnapshotUtc)"
+   ]
+  },
+  {
+   "schema": "core",
+   "name": "XeSessionHealth",
+   "file": "01-central\\01-core-tables.sql",
+   "comment": "",
+   "columns": [
+    {
+     "name": "ServerName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "DatabaseName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SnapshotUtc",
+     "type": "datetime2(3)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "SessionName",
+     "type": "nvarchar(256)",
+     "nullable": "no",
+     "notes": ""
+    },
+    {
+     "name": "State",
+     "type": "varchar(10)",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DroppedEventCount",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "DroppedBufferCount",
+     "type": "bigint",
+     "nullable": "yes",
+     "notes": ""
+    },
+    {
+     "name": "Verdict",
+     "type": "nvarchar(200)",
+     "nullable": "yes",
+     "notes": ""
+    }
+   ],
+   "constraints": [
+    "CONSTRAINT PK_core_XeHealth PRIMARY KEY CLUSTERED (ServerName, DatabaseName, SessionName, SnapshotUtc)"
+   ]
+  }
+ ],
+ "views": [
+  {
+   "schema": "core",
+   "name": "vw_BlockingSummary",
+   "file": "01-central\\03-views.sql",
+   "comment": "BLOCKING, IO, CAPACITY, INDEXES, SECURITY - all per database"
+  },
+  {
+   "schema": "core",
+   "name": "vw_CapacityForecast",
+   "file": "01-central\\03-views.sql",
+   "comment": "CAPACITY FORECAST - same guard rails as the embedded edition.\nDaysUntilFull is NULL, never a bogus huge number, when growth is flat or the\nwall is beyond the horizon. Clamping happens BEFORE the int cast and the\nDATEADD, both of which overflow on a near-idle database."
+  },
+  {
+   "schema": "core",
+   "name": "vw_DeadlockSummary",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_ErrorSummary",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_FeedDiagnosis",
+   "file": "01-central\\04-job-health.sql",
+   "comment": "core.vw_FeedDiagnosis\nThe join that used to be impossible: feed freshness NEXT TO the job outcome\nthat explains it.\n\nDiagnosis is the column worth reading. \"Feed is stale\" is an observation;\n\"feed is stale AND the job is failing with 'Login failed for user' \" is an\nanswer."
+  },
+  {
+   "schema": "core",
+   "name": "vw_FleetScorecard",
+   "file": "01-central\\03-views.sql",
+   "comment": "THE FLEET VIEW - one row per database. This is the query the embedded edition\ncould never write."
+  },
+  {
+   "schema": "core",
+   "name": "vw_FleetSummary",
+   "file": "01-central\\03-views.sql",
+   "comment": "ESTATE ROLL-UP - one row. The number you put on a wall display."
+  },
+  {
+   "schema": "core",
+   "name": "vw_FragmentationWork",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_IoLatency",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_JobExecution",
+   "file": "01-central\\04-job-health.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_JobHealth",
+   "file": "01-central\\04-job-health.sql",
+   "comment": "core.vw_JobHealth\nOne row per (database, tier) over the last 24 hours. This is what the\ndashboard's collection pipeline table reads.\n\nDeliberately built on core.vw_JobExecution rather than on jobs.job_executions\ndirectly, so the stub keeps this view valid before the agent exists."
+  },
+  {
+   "schema": "core",
+   "name": "vw_JobRunSummary",
+   "file": "01-central\\04-job-health.sql",
+   "comment": "core.vw_JobRunSummary\nAgent-wide health, not per-database. Answers \"is the pipeline itself ok?\""
+  },
+  {
+   "schema": "core",
+   "name": "vw_MissingIndexTop",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_OpenAlerts",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_QueryRegression",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_QueryStatsDelta",
+   "file": "01-central\\03-views.sql",
+   "comment": "QUERY DELTAS and REGRESSION - both cross-database."
+  },
+  {
+   "schema": "core",
+   "name": "vw_SecurityDrift",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_TargetStatus",
+   "file": "01-central\\03-views.sql",
+   "comment": "TARGET INVENTORY - the registry joined to what has actually arrived.\nA registered target with no recent arrival is the most important row in the\nwhole system: it means monitoring has silently stopped."
+  },
+  {
+   "schema": "core",
+   "name": "vw_TopQueries",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_TopWaits",
+   "file": "01-central\\03-views.sql",
+   "comment": "TOP WAITS - per database, last 24 h, with plain-English interpretation."
+  },
+  {
+   "schema": "core",
+   "name": "vw_UnusedIndexes",
+   "file": "01-central\\03-views.sql",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "vw_WaitStatsDelta",
+   "file": "01-central\\03-views.sql",
+   "comment": "WAIT DELTAS - computed centrally, because targets cannot hold state.\nNegative deltas mean the counter reset (failover, scale, restart) and are\ndiscarded rather than reported as enormous spikes."
+  }
+ ],
+ "procedures": [
+  {
+   "schema": "cfg",
+   "name": "usp_RegisterTarget",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "params": "@ServerName nvarchar(256), @DatabaseName nvarchar(256), @Environment varchar(32) = NULL, @Owner nvarchar(256) = NULL, @Criticality varchar(16) = NULL, @IsVendorOwned bit = NULL, @Notes nvarchar(1000)= NULL",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "usp_EvaluateAlerts",
+   "file": "01-central\\05-alerts.sql",
+   "params": "@ServerName sysname = NULL, -- NULL = every enabled target @DatabaseName sysname = NULL",
+   "comment": "core.usp_EvaluateAlerts - the rule set.\n\nStructure per database:\n  collect the facts  ->  test each rule  ->  raise + record the code\n  ->  resolve everything that did not fire\n\nAdding a rule means adding one IF block and appending its code to @fire."
+  },
+  {
+   "schema": "core",
+   "name": "usp_Normalize",
+   "file": "01-central\\02-normalize.sql",
+   "params": "@Debug bit = 0",
+   "comment": "THE NORMALIZER\nOne procedure, one pass, every feed. Each feed is independently wrapped so a\nsingle malformed table cannot stop the rest."
+  },
+  {
+   "schema": "core",
+   "name": "usp_Purge",
+   "file": "01-central\\06-purge.sql",
+   "params": "@DryRun bit = 0 -- 1 = report what WOULD be deleted, delete nothing",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "usp_PurgeStaging",
+   "file": "01-central\\02-normalize.sql",
+   "params": "",
+   "comment": "STAGING CLEANUP - run after normalization\nStaging is a landing zone, not an archive. Rows are removed once they are\nolder than Retention.StagingHours, in bounded batches.\n\nWHICH COLUMN SAYS HOW OLD A ROW IS\n\nAn earlier version of this procedure selected only staging tables having a\n'last_modify_time' column. NO staging table has one - Elastic Jobs adds exactly\none column of its own, internal_execution_id, and nothing else. So the cursor\nmatched zero tables and THIS PROCEDURE SILENTLY PURGED NOTHING, on every run,\nfor its entire life. Staging grew without bound while the purge reported\nsuccess with an empty result set.\n\nEach feed carries its own timestamp, emitted by the collection query, so the\nage column is probed per table. A table with none is skipped LOUDLY rather\nthan silently, because \"nothing to purge\" and \"I cannot tell how old this is\"\nmust not look the same."
+  },
+  {
+   "schema": "core",
+   "name": "usp_RaiseAlert",
+   "file": "01-central\\05-alerts.sql",
+   "params": "@ServerName sysname, @DatabaseName sysname, @AlertCode varchar(50), @Severity varchar(20), @Category varchar(50), @Metric nvarchar(128) = NULL, @ObservedValue decimal(19,4) = NULL, @ThresholdValue decimal(19,4) = NULL, @Message nvarchar(1000), @Detail nvarchar(max) = NULL",
+   "comment": "core.usp_RaiseAlert - the only way an alert is created.\nIdempotent by design: calling it in a loop is safe."
+  },
+  {
+   "schema": "core",
+   "name": "usp_RecordArrival",
+   "file": "01-central\\02-normalize.sql",
+   "params": "@FeedName varchar(64), @Tier varchar(20), @Table sysname",
+   "comment": "Record what arrived, from whom, and when - the basis of staleness detection."
+  },
+  {
+   "schema": "core",
+   "name": "usp_ResolveAlerts",
+   "file": "01-central\\05-alerts.sql",
+   "params": "@ServerName sysname, @DatabaseName sysname, @StillFiring nvarchar(max)",
+   "comment": "core.usp_ResolveAlerts - closes every open alert whose code is NOT in the\nlist of codes that are still firing for that database.\n\n@StillFiring is a comma-separated list built by the evaluator. Codes absent\nfrom it are resolved. This is why the evaluator must run every rule every\ntime: a rule that is skipped looks identical to a rule that passed."
+  },
+  {
+   "schema": "core",
+   "name": "usp_StorageReport",
+   "file": "01-central\\06-purge.sql",
+   "params": "",
+   "comment": "core.usp_StorageReport\nWhat is actually consuming the central repository, newest first.\nRun this before tuning retention - the answer is almost always WaitStats."
+  }
+ ],
+ "functions": [
+  {
+   "schema": "cfg",
+   "name": "fn_Dec",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "params": "(@Key varchar(64), @Default decimal(9,2))",
+   "returns": "decimal(9,2) AS",
+   "comment": ""
+  },
+  {
+   "schema": "cfg",
+   "name": "fn_Int",
+   "file": "01-central\\00-schemas-and-config.sql",
+   "params": "(@Key varchar(64), @Default int)",
+   "returns": "int AS",
+   "comment": ""
+  },
+  {
+   "schema": "core",
+   "name": "fn_StagingReady",
+   "file": "01-central\\02-normalize.sql",
+   "params": "(@Table sysname, @RequiredCsv nvarchar(max))",
+   "returns": "bit",
+   "comment": "Guard: does a staging table exist with every column we are about to read?"
+  }
+ ],
+ "settings": [
+  {
+   "key": "Alert.BlockingCritSeconds",
+   "default": "300",
+   "description": "Longest block in the last 15 min -> Critical",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.BlockingSeconds",
+   "default": "30",
+   "description": "Longest block in the last 15 min -> Warning",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.CapacityCritDays",
+   "default": "7",
+   "description": "Projected days until MAXSIZE -> Critical",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.CapacityWarnDays",
+   "default": "30",
+   "description": "Projected days until MAXSIZE -> Warning",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.CpuCritPct",
+   "default": "90",
+   "description": "avg_cpu_percent, 15-min average -> Critical",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.CpuWarnPct",
+   "default": "75",
+   "description": "avg_cpu_percent, 15-min average -> Warning",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.DataIoWarnPct",
+   "default": "80",
+   "description": "avg_data_io_percent, 15-min average",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.DeadlocksPerDay",
+   "default": "3",
+   "description": "Deadlocks in the trailing 24 h before alerting",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.ErrorCountPerHour",
+   "default": "5",
+   "description": "Errors at or above that severity in the trailing hour",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.ErrorSeverity",
+   "default": "17",
+   "description": "Minimum error severity that counts toward ERROR_BURST",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.FragmentationPct",
+   "default": "30",
+   "description": "Fragmentation level counted by the FRAGMENTATION advisory",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.JobFailurePct",
+   "default": "50",
+   "description": "% of collection job attempts that may fail in 24 h before JOB_FAILING",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.LogSpaceWarnPct",
+   "default": "75",
+   "description": "Transaction log space used",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.LogWriteWarnPct",
+   "default": "80",
+   "description": "avg_log_write_percent. 100% means the log rate governor is throttling.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.LongTransactionMinutes",
+   "default": "30",
+   "description": "Oldest open transaction. Blocks log truncation and holds locks.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.MemoryWarnPct",
+   "default": "90",
+   "description": "avg_memory_usage_percent. High alone is normal - correlate with RESOURCE_SEMAPHORE waits.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.RegressionFactor",
+   "default": "2",
+   "description": "Current avg CPU vs 7-day baseline before QUERY_REGRESSION fires",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.SessionWarnPct",
+   "default": "70",
+   "description": "max_session_percent. Usually a connection pool not returning connections.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.SpaceCritPct",
+   "default": "90",
+   "description": "Database size as % of MAXSIZE -> Critical. At 100% inserts fail with 40544.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.SpaceWarnPct",
+   "default": "80",
+   "description": "Database size as % of MAXSIZE -> Warning",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.TempDbWarnPct",
+   "default": "70",
+   "description": "TempDB space used",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.WorkerCritPct",
+   "default": "90",
+   "description": "max_worker_percent -> Critical. At 100% logins fail with error 10928.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Alert.WorkerWarnPct",
+   "default": "70",
+   "description": "max_worker_percent -> Warning",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.AlertHistoryDays",
+   "default": "180",
+   "description": "core.AlertHistory",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.DailyDays",
+   "default": "400",
+   "description": "IndexUsage, MissingIndex, Fragmentation, TableSpace, Security",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.FrequentDays",
+   "default": "7",
+   "description": "ResourceUsage, ActiveRequest, BlockingChain, SessionActivity",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.PurgeBatchRows",
+   "default": "50000",
+   "description": "Rows deleted per DELETE batch. Floor of 1000 is enforced.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.StagingHours",
+   "default": "48",
+   "description": "How long landed staging rows are kept after normalization",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Retention.StandardDays",
+   "default": "35",
+   "description": "WaitStats, QueryStats, Space, Io, Errors, Deadlocks. Biggest storage lever.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Staging.DatabaseColumn",
+   "default": "DatabaseName",
+   "description": "Identity column emitted by each collection query naming the source database",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Staging.ServerColumn",
+   "default": "ServerName",
+   "description": "Identity column emitted by each collection query naming the source server",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Stale.DailyMinutes",
+   "default": "1800",
+   "description": "Daily job runs 02:30 UTC but stamps SnapshotDate (a DATE = midnight), so a fresh feed already reads ~26.5h old just before the next run. 30h covers that granularity; a genuinely missed run still reads ~50h and alerts.",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Stale.FrequentMinutes",
+   "default": "20",
+   "description": "Frequent job runs every 5 min; 20 = 4 missed runs",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "key": "Stale.StandardMinutes",
+   "default": "90",
+   "description": "Standard job runs every 30 min; 90 = 3 missed runs",
+   "file": "01-central\\00-schemas-and-config.sql"
+  }
+ ],
+ "jobs": [
+  {
+   "name": "EHD_Collect_Frequent",
+   "file": "03-elasticjobs\\21-jobs-frequent.sql",
+   "description": "Resource usage, active requests, blocking, sessions, waits",
+   "enabled": "1",
+   "intervalType": "Minutes",
+   "intervalCount": "5",
+   "startTime": "",
+   "steps": [
+    {
+     "name": "ResourceUsage",
+     "outputTable": "ResourceUsage",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    },
+    {
+     "name": "ActiveRequests",
+     "outputTable": "ActiveRequest",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    },
+    {
+     "name": "Blocking",
+     "outputTable": "BlockingChain",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    },
+    {
+     "name": "SessionActivity",
+     "outputTable": "SessionActivity",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    },
+    {
+     "name": "WaitStats",
+     "outputTable": "WaitStats",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    }
+   ]
+  },
+  {
+   "name": "EHD_Collect_Standard",
+   "file": "03-elasticjobs\\22-jobs-standard.sql",
+   "description": "Query stats, Query Store, space, IO, XE harvest, SLO",
+   "enabled": "1",
+   "intervalType": "Minutes",
+   "intervalCount": "30",
+   "startTime": "",
+   "steps": [
+    {
+     "name": "QueryStats",
+     "outputTable": "QueryStats",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "2",
+     "timeout": "300"
+    },
+    {
+     "name": "QueryStore",
+     "outputTable": "QueryStoreTopQuery",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "2",
+     "timeout": "300"
+    },
+    {
+     "name": "Space",
+     "outputTable": "Space",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "2",
+     "timeout": "300"
+    },
+    {
+     "name": "Io",
+     "outputTable": "IoFileStats",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "2",
+     "timeout": "300"
+    },
+    {
+     "name": "XeErrors",
+     "outputTable": "XeErrors",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    },
+    {
+     "name": "XeBlocking",
+     "outputTable": "XeBlocking",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    },
+    {
+     "name": "XeHealth",
+     "outputTable": "XeSessionHealth",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "120"
+    }
+   ]
+  },
+  {
+   "name": "EHD_Collect_Daily",
+   "file": "03-elasticjobs\\23-jobs-daily.sql",
+   "description": "Index usage, missing indexes, fragmentation, table space, security",
+   "enabled": "1",
+   "intervalType": "Days",
+   "intervalCount": "1",
+   "startTime": "2026-01-01 02:30:00",
+   "steps": [
+    {
+     "name": "IndexUsage",
+     "outputTable": "IndexUsage",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "1800"
+    },
+    {
+     "name": "MissingIndexes",
+     "outputTable": "MissingIndex",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "600"
+    },
+    {
+     "name": "Fragmentation",
+     "outputTable": "IndexFragmentation",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "3600"
+    },
+    {
+     "name": "TableSpace",
+     "outputTable": "TableSpace",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "900"
+    },
+    {
+     "name": "SecurityPrincipals",
+     "outputTable": "SecurityPrincipal",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    },
+    {
+     "name": "SecurityPermissions",
+     "outputTable": "SecurityPermission",
+     "outputSchema": "stg",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    }
+   ]
+  },
+  {
+   "name": "EHD_Process_Frequent",
+   "file": "03-elasticjobs\\24-jobs-process.sql",
+   "description": "Enterprise Health Dashboard: staging -> core, then evaluate alerts. Runs in the central repository only.",
+   "enabled": "1",
+   "intervalType": "Minutes",
+   "intervalCount": "5",
+   "startTime": "2024-01-01T00:02:00",
+   "steps": [
+    {
+     "name": "01_Normalize",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "EHD_Central",
+     "retries": "2",
+     "timeout": "600"
+    },
+    {
+     "name": "02_EvaluateAlerts",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "EHD_Central",
+     "retries": "1",
+     "timeout": "600"
+    }
+   ]
+  },
+  {
+   "name": "EHD_Process_Daily",
+   "file": "03-elasticjobs\\24-jobs-process.sql",
+   "description": "Enterprise Health Dashboard: retention. Deletes aged rows from core and stg per cfg.Setting Retention.* values.",
+   "enabled": "1",
+   "intervalType": "Hours",
+   "intervalCount": "24",
+   "startTime": "2024-01-01T03:15:00",
+   "steps": [
+    {
+     "name": "01_Normalize",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "EHD_Central",
+     "retries": "2",
+     "timeout": "1800"
+    },
+    {
+     "name": "02_Purge",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "EHD_Central",
+     "retries": "0",
+     "timeout": "3600"
+    },
+    {
+     "name": "03_SyncTargetRegistry",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "EHD_Central",
+     "retries": "1",
+     "timeout": "300"
+    }
+   ]
+  },
+  {
+   "name": "EHD_Setup_Targets",
+   "file": "03-elasticjobs\\25-jobs-setup.sql",
+   "description": "OPTIONAL. Deploys the 2 XE sessions and configures Query Store on each target. The only job that writes to a target. Disabled and unscheduled by design - start it manually.",
+   "enabled": "0",
+   "intervalType": "(none)",
+   "intervalCount": "",
+   "startTime": "",
+   "steps": [
+    {
+     "name": "01_XeSessions",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    },
+    {
+     "name": "02_QueryStore",
+     "outputTable": "",
+     "outputSchema": "",
+     "targetGroup": "@Group",
+     "retries": "1",
+     "timeout": "300"
+    }
+   ]
+  }
+ ],
+ "indexes": [
+  {
+   "name": "IX_core_ActiveRequest_Snap",
+   "schema": "core",
+   "table": "ActiveRequest",
+   "keys": "SnapshotUtc DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName, TotalElapsedMs)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_Alert_Open",
+   "schema": "core",
+   "table": "AlertHistory",
+   "keys": "ServerName, DatabaseName, AlertCode, RaisedUtc DESC",
+   "extra": "WHERE ResolvedUtc IS NULL",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_Alert_Raised",
+   "schema": "core",
+   "table": "AlertHistory",
+   "keys": "RaisedUtc DESC",
+   "extra": "INCLUDE (Severity, AlertCode, ResolvedUtc)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_BlockingChain_Snap",
+   "schema": "core",
+   "table": "BlockingChain",
+   "keys": "SnapshotUtc DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName, WaitDurationMs)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_Deadlock_Time",
+   "schema": "core",
+   "table": "Deadlock",
+   "keys": "EventTimeUtc DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_ErrorEvent_Time",
+   "schema": "core",
+   "table": "ErrorEvent",
+   "keys": "EventTimeUtc DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName, ErrorNumber, Severity)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "UX_core_ErrorEvent_Dedupe",
+   "schema": "core",
+   "table": "ErrorEvent",
+   "keys": "ServerName, DatabaseName, EventTimeUtc, EventSequence",
+   "extra": "WHERE EventSequence IS NOT NULL",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_MissingIndex_Snap",
+   "schema": "core",
+   "table": "MissingIndex",
+   "keys": "SnapshotDate DESC, ImpactScore DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_ProcessRun_Started",
+   "schema": "core",
+   "table": "ProcessRun",
+   "keys": "StartedUtc DESC",
+   "extra": "INCLUDE (StepName, Status)",
+   "file": "01-central\\00-schemas-and-config.sql"
+  },
+  {
+   "name": "UX_core_QsTop_Dedupe",
+   "schema": "core",
+   "table": "QueryStoreTopQuery",
+   "keys": "ServerName, DatabaseName, QueryId, PlanId, IntervalEndUtc",
+   "extra": "WHERE IntervalEndUtc IS NOT NULL",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "IX_core_ResourceUsage_Time",
+   "schema": "core",
+   "table": "ResourceUsage",
+   "keys": "EndTimeUtc DESC",
+   "extra": "INCLUDE (ServerName, DatabaseName, AvgCpuPct, MaxWorkerPct)",
+   "file": "01-central\\01-core-tables.sql"
+  },
+  {
+   "name": "UX_core_WaitEvent_Dedupe",
+   "schema": "core",
+   "table": "WaitEvent",
+   "keys": "ServerName, DatabaseName, EventTimeUtc, EventSequence",
+   "extra": "WHERE EventSequence IS NOT NULL",
+   "file": "01-central\\01-core-tables.sql"
+  }
+ ],
+ "files": [
+  {
+   "path": "01-central\\00-schemas-and-config.sql",
+   "lines": 274,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\01-core-tables.sql",
+   "lines": 603,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\02-normalize.sql",
+   "lines": 767,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\03-views.sql",
+   "lines": 633,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\04-job-health.sql",
+   "lines": 237,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\05-alerts.sql",
+   "lines": 649,
+   "purpose": ""
+  },
+  {
+   "path": "01-central\\06-purge.sql",
+   "lines": 277,
+   "purpose": ""
+  },
+  {
+   "path": "02-targets\\10-target-permissions.sql",
+   "lines": 173,
+   "purpose": ""
+  },
+  {
+   "path": "02-targets\\11-target-xe-sessions.sql",
+   "lines": 205,
+   "purpose": ""
+  },
+  {
+   "path": "02-targets\\12-target-querystore.sql",
+   "lines": 168,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\20-agent-setup.sql",
+   "lines": 372,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\21-jobs-frequent.sql",
+   "lines": 422,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\22-jobs-standard.sql",
+   "lines": 501,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\23-jobs-daily.sql",
+   "lines": 357,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\24-jobs-process.sql",
+   "lines": 296,
+   "purpose": ""
+  },
+  {
+   "path": "03-elasticjobs\\25-jobs-setup.sql",
+   "lines": 209,
+   "purpose": ""
+  }
+ ],
+ "feeds": [
+  {
+   "feed": "ResourceUsage",
+   "tier": "Frequent",
+   "staging": "stg.ResourceUsage",
+   "coreTables": [
+    "core.ResourceUsage"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, EndTimeUtc"
+  },
+  {
+   "feed": "ActiveRequest",
+   "tier": "Frequent",
+   "staging": "stg.ActiveRequest",
+   "coreTables": [
+    "core.ActiveRequest"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc,SessionId"
+  },
+  {
+   "feed": "BlockingChain",
+   "tier": "Frequent",
+   "staging": "stg.BlockingChain",
+   "coreTables": [
+    "core.BlockingChain"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc,BlockedSessionId"
+  },
+  {
+   "feed": "SessionActivity",
+   "tier": "Frequent",
+   "staging": "stg.SessionActivity",
+   "coreTables": [
+    "core.SessionActivity"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc,ProgramName"
+  },
+  {
+   "feed": "WaitStats",
+   "tier": "Frequent",
+   "staging": "stg.WaitStats",
+   "coreTables": [
+    "core.WaitStats"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc,WaitType"
+  },
+  {
+   "feed": "QueryStats",
+   "tier": "Standard",
+   "staging": "stg.QueryStats",
+   "coreTables": [
+    "core.QueryStats"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc,QueryHash"
+  },
+  {
+   "feed": "QueryStore",
+   "tier": "Standard",
+   "staging": "stg.QueryStoreTopQuery",
+   "coreTables": [
+    "core.QueryStoreTopQuery"
+   ],
+   "requiredColumns": ""
+  },
+  {
+   "feed": "Space",
+   "tier": "Standard",
+   "staging": "stg.Space",
+   "coreTables": [
+    "core.DatabaseSpace",
+    "core.LogSpace",
+    "core.ServiceObjectiveChange",
+    "core.TempDbUsage"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotUtc"
+  },
+  {
+   "feed": "Io",
+   "tier": "Standard",
+   "staging": "stg.IoFileStats",
+   "coreTables": [
+    "core.IoFileStats"
+   ],
+   "requiredColumns": ""
+  },
+  {
+   "feed": "XeErrors",
+   "tier": "Standard",
+   "staging": "stg.XeErrors",
+   "coreTables": [
+    "core.Deadlock",
+    "core.ErrorEvent"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, EventTimeUtc,EventName"
+  },
+  {
+   "feed": "XeBlocking",
+   "tier": "Standard",
+   "staging": "stg.XeBlocking",
+   "coreTables": [
+    "core.WaitEvent"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, EventTimeUtc"
+  },
+  {
+   "feed": "XeHealth",
+   "tier": "Standard",
+   "staging": "stg.XeSessionHealth",
+   "coreTables": [
+    "core.XeSessionHealth"
+   ],
+   "requiredColumns": ""
+  },
+  {
+   "feed": "IndexUsage",
+   "tier": "Daily",
+   "staging": "stg.IndexUsage",
+   "coreTables": [
+    "core.IndexUsage"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotDate,SchemaName,TableName,IndexName"
+  },
+  {
+   "feed": "MissingIndex",
+   "tier": "Daily",
+   "staging": "stg.MissingIndex",
+   "coreTables": [
+    "core.MissingIndex"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotDate"
+  },
+  {
+   "feed": "Fragmentation",
+   "tier": "Daily",
+   "staging": "stg.IndexFragmentation",
+   "coreTables": [
+    "core.IndexFragmentation"
+   ],
+   "requiredColumns": ""
+  },
+  {
+   "feed": "TableSpace",
+   "tier": "Daily",
+   "staging": "stg.TableSpace",
+   "coreTables": [
+    "core.TableSpace"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotDate,SchemaName,TableName"
+  },
+  {
+   "feed": "SecurityPrincipal",
+   "tier": "Daily",
+   "staging": "stg.SecurityPrincipal",
+   "coreTables": [
+    "core.SecurityPrincipal"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotDate,PrincipalName"
+  },
+  {
+   "feed": "SecurityPermission",
+   "tier": "Daily",
+   "staging": "stg.SecurityPermission",
+   "coreTables": [
+    "core.SecurityPermission"
+   ],
+   "requiredColumns": "ServerName, DatabaseName, SnapshotDate,GranteeName"
+  }
+ ]
+}

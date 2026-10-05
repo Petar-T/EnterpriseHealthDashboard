@@ -1,0 +1,65 @@
+# ===========================================================================
+#  Enterprise Health Dashboard - .gitignore
+#
+#  The important rule: a GENERATED dashboard contains real data from a real
+#  estate - server names, database names, query text, login names, error
+#  messages. Only the shipped template is safe to publish.
+#
+#  Verify before your first commit:
+#      git status
+#      git check-ignore -v 04-dashboard/estate.html      # should be ignored
+#      git check-ignore -v 04-dashboard/dashboard.html   # should NOT be ignored
+# ===========================================================================
+
+# --- generated dashboards: REAL DATA, never commit -------------------------
+04-dashboard/*.html
+estate*.html
+*-demo.html
+
+# ...except the template, which ships with sample data and is required by the
+# generator. This negation works because no rule excludes 04-dashboard/ itself.
+!04-dashboard/dashboard.html
+
+# --- generated documents ---------------------------------------------------
+# Regenerate: python deploy/Export-Inventory.py && node deploy/doc3-objects.js
+# They also acquire a tenant sensitivity label when created inside OneDrive,
+# which makes them unreadable to document tooling.
+*.docx
+*.pdf
+
+# Screenshots ARE committed - the README embeds them.
+!docs/EHD-Docs/screens/*.png
+
+# Superseded preview images from an earlier synthetic estate. Harmless (no real
+# data) but they show the old 3-server seed and reference a credential that no
+# longer exists. The README uses docs/EHD-Docs/screens/ instead.
+04-dashboard/preview-*.png
+
+# Scratch output from reconciling the inventory against a live database
+docs/live-objects.txt
+
+# --- secrets ---------------------------------------------------------------
+secrets.json
+*.secret
+*.key
+*.pfx
+*.pem
+.env
+appsettings.*.json
+local.settings.json
+
+# --- local scratch ---------------------------------------------------------
+*.old
+*.bak
+*.tmp
+~$*
+
+# --- tooling ---------------------------------------------------------------
+node_modules/
+package-lock.json
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
