@@ -695,14 +695,61 @@ function gauge(el, score) {
      </svg><div class="num">${pct}<span>score</span></div>`;
 }
 
+/* ---------------------------------------------------------------------------
+   Generic table renderer, with optional click-to-sort.
+
+   A column opts in by carrying a key:  {t:"Execs", num:true, k:"execs"}
+   The key names a property on the row object. Columns without a key stay
+   inert, which is right for free-text cells like a SQL statement.
+
+   Sorting was originally built ONLY for the fleet scorecard, wired directly to
+   state.sortKey / renderFleet(). Every other table - top queries, regressions,
+   errors, IO, index advisories - rendered a plain <th> and could not be
+   reordered at all, even though "which query burns the most CPU" is exactly
+   the question that tab exists to answer. Rather than copy the bespoke
+   scorecard logic per table, the sort lives here once and each table keeps its
+   own independent sort state, keyed by element id.
+
+   The last call is cached per table so a sort can re-render from the same
+   rows and rowFn without the caller having to re-supply them.
+--------------------------------------------------------------------------- */
+const tableCache = {};   /* elId -> { cols, rows, rowFn } */
+const tableSort  = {};   /* elId -> { k, dir }            */
+
+function sortRows(rows, k, dir) {
+  return rows.slice().sort((a, b) => {
+    const va = a[k], vb = b[k];
+    /* missing values sink, in both directions - a blank is never "the top" */
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const c = (typeof va === "number" && typeof vb === "number")
+            ? va - vb
+            : String(va).localeCompare(String(vb), undefined, { numeric: true });
+    return c * dir;
+  });
+}
+
 function table(el, cols, rows, rowFn) {
+  tableCache[el.id] = { cols, rows, rowFn };
+
   if (!rows || !rows.length) {
     el.innerHTML = `<tbody><tr><td><div class="empty"><b>Nothing to show</b>No rows for this window.</div></td></tr></tbody>`;
     return;
   }
+
+  const st   = tableSort[el.id];
+  const data = st ? sortRows(rows, st.k, st.dir) : rows;
+
   el.innerHTML =
-    "<thead><tr>" + cols.map(c => `<th class="${c.num ? "num" : ""}">${esc(c.t)}</th>`).join("") + "</tr></thead>" +
-    "<tbody>" + rows.map(rowFn).join("") + "</tbody>";
+    "<thead><tr>" + cols.map(c => {
+      if (!c.k) return `<th class="${c.num ? "num" : ""}">${esc(c.t)}</th>`;
+      const active = st && st.k === c.k;
+      const dirCls = active ? (st.dir === 1 ? "sort-asc" : "sort-desc") : "";
+      return `<th class="sortable ${c.num ? "num" : ""} ${dirCls}" data-tk="${esc(c.k)}"
+                  title="Sort by ${esc(c.t)}">${esc(c.t)}</th>`;
+    }).join("") + "</tr></thead>" +
+    "<tbody>" + data.map(rowFn).join("") + "</tbody>";
 }
 
 /* =========================================================================
@@ -1176,7 +1223,7 @@ function renderDetail(t) {
   }).join("") : `<div class="empty"><b>No open alerts</b>Everything is within threshold.</div>`;
 
   table($("tblCollectors"),
-    [{t:"Tier"},{t:"Last success"},{t:"Age",num:true},{t:"Limit",num:true},{t:"Fails 24h",num:true},{t:"Status"},{t:"Last error"}],
+    [{t:"Tier",k:"tier"},{t:"Last success",k:"lastSuccess"},{t:"Age",num:true,k:"ageMin"},{t:"Limit",num:true,k:"limitMin"},{t:"Fails 24h",num:true,k:"failures24h"},{t:"Status",k:"status"},{t:"Last error"}],
     t.collectors || [],
     c => `<tr><td><b>${esc(c.tier)}</b></td>
       <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(c.lastSuccess.replace("T", " ")) : '<span class="bad">never</span>'}</td>
@@ -1189,7 +1236,7 @@ function renderDetail(t) {
           c.lastError ? esc(String(c.lastError).slice(0, 110)) + (String(c.lastError).length > 110 ? "\u2026" : "") : "<span style='color:var(--cp-text-soft)'>\u2014</span>"}</td></tr>`);
 
   table($("tblXe"),
-    [{t:"Session"},{t:"State"},{t:"Dropped",num:true},{t:"Verdict"}],
+    [{t:"Session",k:"session"},{t:"State",k:"state"},{t:"Dropped",num:true,k:"dropped"},{t:"Verdict",k:"verdict"}],
     t.xe || [],
     x => `<tr><td class="mono">${esc(x.session)}</td>
       <td><span class="tag ${x.state === "RUNNING" ? "t-ok" : "t-mute"}">${esc(x.state)}</span></td>
@@ -1212,7 +1259,7 @@ function renderDetail(t) {
     </div>`).join("") : `<div class="empty"><b>No wait data</b>Collectors may not have run yet.</div>`;
 
   table($("tblIo"),
-    [{t:"File"},{t:"Type"},{t:"Read ms",num:true},{t:"Write ms",num:true},{t:"Read MB/s",num:true},{t:"Write MB/s",num:true}],
+    [{t:"File",k:"file"},{t:"Type",k:"type"},{t:"Read ms",num:true,k:"readMs"},{t:"Write ms",num:true,k:"writeMs"},{t:"Read MB/s",num:true,k:"readMB"},{t:"Write MB/s",num:true,k:"writeMB"}],
     t.io || [],
     i => `<tr><td class="mono">${esc(i.file)}</td><td>${esc(i.type)}</td>
       <td class="num ${i.readMs > 20 ? "bad" : i.readMs > 10 ? "warn" : "ok"}">${num(i.readMs,1)}</td>
@@ -1220,7 +1267,7 @@ function renderDetail(t) {
       <td class="num">${num(i.readMB,1)}</td><td class="num">${num(i.writeMB,1)}</td></tr>`);
 
   table($("tblErrors"),
-    [{t:"Error"},{t:"Sev",num:true},{t:"Count",num:true},{t:"Message"},{t:"App"},{t:"Last seen"}],
+    [{t:"Error",k:"num"},{t:"Sev",num:true,k:"sev"},{t:"Count",num:true,k:"count"},{t:"Message"},{t:"App",k:"app"},{t:"Last seen",k:"last"}],
     t.errors || [],
     e => `<tr><td class="mono"><b>${e.num}</b></td>
       <td class="num ${e.sev >= 16 ? "bad" : "warn"}">${e.sev}</td>
@@ -1232,7 +1279,9 @@ function renderDetail(t) {
   /* ---- queries ---- */
   $("regCount").textContent = (t.regressions || []).length + " detected";
   table($("tblReg"),
-    [{t:"Object"},{t:"Base avg CPU",num:true},{t:"Current",num:true},{t:"Factor",num:true},{t:"Plans \u0394",num:true},{t:"Verdict"},{t:"Statement"}],
+    [{t:"Object",k:"obj"},{t:"Base avg CPU",num:true,k:"baseMs"},{t:"Current",num:true,k:"curMs"},
+     {t:"Factor",num:true,k:"factor"},{t:"Plans \u0394",num:true,k:"planDelta"},
+     {t:"Verdict",k:"verdict"},{t:"Statement"}],
     t.regressions || [],
     r => `<tr>
       <td><b>${esc(r.obj)}</b><div class="mono" style="font-size:10.5px;color:var(--cp-text-soft)">${esc(r.hash)}</div></td>
@@ -1244,7 +1293,9 @@ function renderDetail(t) {
       <td class="sql">${esc(r.sql)}</td></tr>`);
 
   table($("tblQueries"),
-    [{t:"Object"},{t:"Execs",num:true},{t:"Total CPU",num:true},{t:"Avg",num:true},{t:"Avg reads",num:true},{t:"Plans",num:true},{t:"Statement"}],
+    [{t:"Object",k:"obj"},{t:"Execs",num:true,k:"execs"},{t:"Total CPU",num:true,k:"cpuSec"},
+     {t:"Avg",num:true,k:"avgMs"},{t:"Avg reads",num:true,k:"reads"},{t:"Plans",num:true,k:"plans"},
+     {t:"Statement"}],
     t.topQueries || [],
     q => `<tr>
       <td><b>${esc(q.obj)}</b><div class="mono" style="font-size:10.5px;color:var(--cp-text-soft)">${esc(q.hash)}</div></td>
@@ -1301,7 +1352,7 @@ function renderDetail(t) {
     </div>`;
 
   table($("tblTables"),
-    [{t:"Table"},{t:"Rows",num:true},{t:"Total",num:true},{t:"Data",num:true},{t:"Index",num:true},{t:"Index %",num:true}],
+    [{t:"Table",k:"name"},{t:"Rows",num:true,k:"rows"},{t:"Total",num:true,k:"totalMB"},{t:"Data",num:true,k:"dataMB"},{t:"Index",num:true,k:"indexMB"},{t:"Index %",num:true}],
     t.tables || [],
     x => `<tr><td><b>${esc(x.schema)}.${esc(x.name)}</b></td>
       <td class="num">${num(x.rows)}</td><td class="num"><b>${num(x.totalMB/1024,1)} GB</b></td>
@@ -1310,7 +1361,7 @@ function renderDetail(t) {
 
   /* ---- indexes ---- */
   table($("tblMissing"),
-    [{t:"Table"},{t:"Equality"},{t:"Inequality"},{t:"Include"},{t:"Seeks",num:true},{t:"Impact",num:true},{t:"Score",num:true},{t:"CREATE statement"}],
+    [{t:"Table",k:"table"},{t:"Equality"},{t:"Inequality"},{t:"Include"},{t:"Seeks",num:true,k:"seeks"},{t:"Impact",num:true,k:"impact"},{t:"Score",num:true,k:"score"},{t:"CREATE statement"}],
     t.missingIndexes || [],
     m => `<tr><td><b>${esc(m.schema)}.${esc(m.table)}</b></td>
       <td class="mono" style="font-size:11.5px">${esc(m.eq)}</td>
@@ -1320,7 +1371,7 @@ function renderDetail(t) {
       <td class="num"><b>${num(m.score)}</b></td><td class="sql">${esc(m.stmt)}</td></tr>`);
 
   table($("tblUnused"),
-    [{t:"Index"},{t:"Size",num:true},{t:"Reads",num:true},{t:"Writes",num:true},{t:"Verdict"}],
+    [{t:"Index",k:"index"},{t:"Size",num:true,k:"sizeMB"},{t:"Reads",num:true,k:"reads"},{t:"Writes",num:true,k:"updates"},{t:"Verdict",k:"verdict"}],
     t.unusedIndexes || [],
     u => `<tr><td><b>${esc(u.index)}</b><div style="font-size:11px;color:var(--cp-text-soft)">${esc(u.schema)}.${esc(u.table)}</div></td>
       <td class="num"><b>${num(u.sizeMB,0)} MB</b></td>
@@ -1329,7 +1380,7 @@ function renderDetail(t) {
       <td style="font-size:11.5px;color:var(--cp-text-muted)">${esc(u.verdict)}</td></tr>`);
 
   table($("tblFrag"),
-    [{t:"Index"},{t:"Frag",num:true},{t:"Pages",num:true},{t:"Size",num:true},{t:"Action"}],
+    [{t:"Index",k:"index"},{t:"Frag",num:true,k:"frag"},{t:"Pages",num:true,k:"pages"},{t:"Size",num:true,k:"mb"},{t:"Action",k:"action"}],
     t.fragmentation || [],
     f => `<tr><td><b>${esc(f.index)}</b><div style="font-size:11px;color:var(--cp-text-soft)">${esc(f.schema)}.${esc(f.table)}</div></td>
       <td class="num ${f.frag >= 30 ? "bad" : "warn"}">${num(f.frag,1)}%</td>
@@ -1514,6 +1565,24 @@ document.body.addEventListener("click", (e) => {
     if (state.sortKey === k) state.sortDir *= -1;
     else { state.sortKey = k; state.sortDir = (k === "database" || k === "server" || k === "slo") ? 1 : -1; }
     renderFleet();
+    return;
+  }
+  /* generic tables rendered through table() - each sorts independently */
+  const tth = e.target.closest("th.sortable[data-tk]");
+  if (tth) {
+    const tbl = tth.closest("table");
+    const c   = tableCache[tbl.id];
+    if (c) {
+      const k  = tth.dataset.tk;
+      const st = tableSort[tbl.id];
+      /* First click on a NUMERIC column sorts descending: the biggest consumer
+         is what you came to see. Text columns start ascending. */
+      const col = c.cols.find(x => x.k === k);
+      tableSort[tbl.id] = (st && st.k === k)
+        ? { k, dir: st.dir * -1 }
+        : { k, dir: col && col.num ? -1 : 1 };
+      table(tbl, c.cols, c.rows, c.rowFn);
+    }
     return;
   }
   const row = e.target.closest("tr.drill[data-id]");
