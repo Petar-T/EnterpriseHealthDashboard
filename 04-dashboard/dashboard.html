@@ -342,8 +342,13 @@ svg text { font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
     <span class="cnt" id="cntDb"></span>
   </div>
   <div class="fld">
-    <label for="selEnv">Health</label>
-    <select id="selEnv">
+    <label for="selEnv">Environment</label>
+    <select id="selEnv"></select>
+    <span class="cnt" id="cntEnv"></span>
+  </div>
+  <div class="fld">
+    <label for="selHealth">Health</label>
+    <select id="selHealth">
       <option value="*">Any state</option>
       <option value="crit">Critical alerts only</option>
       <option value="any">Any open alert</option>
@@ -751,14 +756,22 @@ T.forEach(t => {
   });
 });
 
-const state = { tab: "fleet", srv: "*", db: "*", health: "*", find: "",
+const state = { tab: "fleet", srv: "*", db: "*", env: "*", health: "*", find: "",
                 sortKey: "healthScore", sortDir: 1, autoPicked: false };
+
+/* cfg.Target.Environment defaults to 'Default', but a dashboard generated from
+   an older repository - or the shipped sample data - can still carry an empty
+   string. Fold both to the same label so the dropdown never grows a blank
+   option that silently splits one environment into two. */
+const ENV_DEFAULT = "Default";
+function envOf(t) { return (t.environment || "").trim() || ENV_DEFAULT; }
 
 function readHash() {
   const h = new URLSearchParams(location.hash.replace(/^#/, ""));
   if (h.get("tab"))    state.tab = h.get("tab");
   if (h.get("srv"))    state.srv = decodeURIComponent(h.get("srv"));
   if (h.get("db"))     state.db  = decodeURIComponent(h.get("db"));
+  if (h.get("env"))    state.env = decodeURIComponent(h.get("env"));
   if (h.get("health")) state.health = h.get("health");
   if (h.get("find"))   state.find = decodeURIComponent(h.get("find"));
 }
@@ -767,6 +780,7 @@ function writeHash() {
   h.set("tab", state.tab);
   if (state.srv    !== "*") h.set("srv", state.srv);
   if (state.db     !== "*") h.set("db", state.db);
+  if (state.env    !== "*") h.set("env", state.env);
   if (state.health !== "*") h.set("health", state.health);
   if (state.find)           h.set("find", state.find);
   const s = "#" + h.toString();
@@ -778,6 +792,7 @@ function matching() {
   const q = state.find.trim().toLowerCase();
   return T.filter(t =>
        (state.srv === "*" || t.server === state.srv)
+    && (state.env === "*" || envOf(t) === state.env)
     && (state.health === "*"
         || (state.health === "crit"  && t.critCount > 0)
         || (state.health === "any"   && (t.alerts || []).length > 0)
@@ -805,6 +820,23 @@ function buildFilters() {
       return `<option value="${esc(s)}"${s === state.srv ? " selected" : ""}>${esc(shortServer(s))} — ${n} db${n === 1 ? "" : "s"}${c ? ` (${c} critical)` : ""}</option>`;
     }).join("");
 
+  /* Environments, sorted, with 'Default' pinned last so the classified ones
+     read first. Counts are server-scoped so the option labels agree with the
+     server filter already applied above. */
+  const envScope = T.filter(t => state.srv === "*" || t.server === state.srv);
+  const envs = [...new Set(envScope.map(envOf))].sort((a, b) =>
+      a === ENV_DEFAULT ? 1 : b === ENV_DEFAULT ? -1 : a.localeCompare(b));
+  $("selEnv").innerHTML =
+    `<option value="*">All environments (${envs.length})</option>` +
+    envs.map(e => {
+      const n = envScope.filter(t => envOf(t) === e).length;
+      const c = envScope.filter(t => envOf(t) === e).reduce((a, t) => a + t.critCount, 0);
+      return `<option value="${esc(e)}"${e === state.env ? " selected" : ""}>${esc(e)} — ${n} db${n === 1 ? "" : "s"}${c ? ` (${c} critical)` : ""}</option>`;
+    }).join("");
+  // a server change can strip the selected environment out of the list
+  if (state.env !== "*" && !envs.includes(state.env)) state.env = "*";
+  $("selEnv").value = state.env;
+
   const pool = matching();
   const opts = pool.slice().sort((a, b) => a.database.localeCompare(b.database));
   $("selDb").innerHTML =
@@ -818,11 +850,14 @@ function buildFilters() {
   // if the selected db was filtered out, fall back to the fleet view
   if (state.db !== "*" && !opts.some(t => t.id === state.db)) state.db = "*";
   $("selDb").value = state.db;
-  $("selEnv").value = state.health;
+  $("selHealth").value = state.health;
   $("txtFind").value = state.find;
 
   const totalCrit = pool.reduce((a, t) => a + t.critCount, 0);
   $("cntServer").innerHTML = `${servers.length} server${servers.length === 1 ? "" : "s"} monitored`;
+  $("cntEnv").innerHTML = state.env === "*"
+    ? `${envs.length} environment${envs.length === 1 ? "" : "s"}`
+    : `<b style="color:var(--cp-accent)">${envScope.filter(t => envOf(t) === state.env).length}</b> in ${esc(state.env)}`;
   $("cntDb").innerHTML = pool.length === T.length
     ? `${T.length} database${T.length === 1 ? "" : "s"}`
     : `<b style="color:var(--cp-accent)">${pool.length} of ${T.length}</b> match`;
@@ -1453,6 +1488,9 @@ $("selDb").addEventListener("change", (e) => {
   render();
 });
 $("selEnv").addEventListener("change", (e) => {
+  state.env = e.target.value; state.db = "*"; state.tab = "fleet"; render();
+});
+$("selHealth").addEventListener("change", (e) => {
   state.health = e.target.value; state.db = "*"; state.tab = "fleet"; render();
 });
 let findTimer;
@@ -1462,7 +1500,7 @@ $("txtFind").addEventListener("input", (e) => {
   findTimer = setTimeout(() => { state.find = v; state.db = "*"; state.tab = "fleet"; render(); }, 180);
 });
 $("btnReset").addEventListener("click", () => {
-  state.srv = "*"; state.db = "*"; state.health = "*"; state.find = ""; state.tab = "fleet";
+  state.srv = "*"; state.db = "*"; state.env = "*"; state.health = "*"; state.find = ""; state.tab = "fleet";
   render();
 });
 document.body.addEventListener("click", (e) => {

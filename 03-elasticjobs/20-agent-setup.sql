@@ -197,6 +197,27 @@ GRANT SELECT  ON SCHEMA::cfg  TO [ehd-agent-umi];
 GRANT INSERT, UPDATE ON OBJECT::cfg.Target TO [ehd-agent-umi];
 
 GRANT EXECUTE ON SCHEMA::core TO [ehd-agent-umi];    -- usp_Normalize / EvaluateAlerts / Purge
+
+-- EXECUTE on cfg too, for the scalar settings readers cfg.fn_Int and cfg.fn_Dec.
+--
+-- SELECT on the schema is NOT enough: reading a scalar function requires EXECUTE,
+-- and SELECT on cfg only covers cfg.Setting and cfg.Target as tables. Ownership
+-- chaining normally hides this - core and cfg are both owned by dbo, so a call
+-- from a core procedure into cfg.fn_Int chains cleanly - but the normalizer
+-- builds its per-feed statements with sp_executesql, and a chain does NOT carry
+-- into dynamic SQL. The dynamic batch is its own context, so the function call
+-- is permission-checked against the caller: the agent identity.
+--
+-- The result was a split failure that pointed nowhere near the cause. Every
+-- collection job succeeded, and EHD_Process_Frequent step 01_Normalize failed -
+-- but ONLY when run by the agent. The same procedure executed by a human admin
+-- worked perfectly, because an admin already has EXECUTE, which made it look
+-- like a job-agent or connectivity fault rather than a missing grant.
+--
+-- Read-only: these two functions parse cfg.Setting values and return int/decimal.
+-- They cannot modify anything, so this does not widen the write boundary above.
+GRANT EXECUTE ON SCHEMA::cfg TO [ehd-agent-umi];
+
 GRANT VIEW DEFINITION TO [ehd-agent-umi];            -- fn_StagingReady inspects sys.columns
 
 -- READ job history. core.vw_JobHealth -> core.vw_JobExecution -> jobs.job_executions,

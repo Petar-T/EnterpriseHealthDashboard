@@ -632,6 +632,18 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::stg  TO ehd_writer;
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::core TO ehd_writer;
 GRANT SELECT  ON SCHEMA::cfg  TO ehd_writer;
 GRANT EXECUTE ON SCHEMA::core TO ehd_writer;
+
+-- EXECUTE on cfg, for the scalar settings readers cfg.fn_Int / cfg.fn_Dec.
+-- SELECT on the schema does NOT cover scalar functions. Ownership chaining
+-- usually hides this, but the normalizer builds its per-feed statements with
+-- sp_executesql, and a chain does not carry into dynamic SQL - so the call is
+-- permission-checked against the agent identity. Symptom: every collection job
+-- succeeds and 01_Normalize fails, but ONLY when the agent runs it. The same
+-- procedure works when a human admin runs it (admins already have EXECUTE),
+-- which makes it look like a job-agent fault rather than a missing grant.
+-- Read-only: these functions parse cfg.Setting and return int/decimal.
+GRANT EXECUTE ON SCHEMA::cfg TO ehd_writer;
+
 GRANT VIEW DEFINITION TO ehd_writer;            -- fn_StagingReady reads sys.columns
 
 -- Write access to cfg.Target, and to NOTHING else in cfg.
@@ -1242,6 +1254,7 @@ Does cfg.Target have enabled rows?
 | **`Invalid object name 'sys.dm_...'` despite the reference sitting inside `BEGIN TRY`** | binding errors are raised at COMPILE time, before the `TRY` block is entered — `TRY/CATCH` cannot catch them | guard with `OBJECT_ID(...) IS NOT NULL` and defer the bind through `sp_executesql`, so the failure moves to run time where it *is* catchable. See the `Space` step in `22-jobs-standard.sql` |
 | **Job says `Succeeded` but `stg.*` tables never appear, and `target_database_name` is NULL on every execution row** | **the target group is empty** — the job ran zero times and reported success | `SELECT * FROM jobs.target_group_members` — add the member, then re-run |
 | **`Cannot open server '<srv>' requested by the login. Client with IP address '20.x.x.x' is not allowed`** | the job agent's own IP is blocked. Your client-IP firewall rule covers your laptop, not the agent. **Applies even when the agent and target share one logical server** | elastic-jobs private endpoint (approve it on the target server), or `EXEC sp_set_firewall_rule N'AllowAllWindowsAzureIps','0.0.0.0','0.0.0.0'` in `master`. Do not allow-list the agent IP — it is not stable |
+| **`EHD_Process_Frequent` step `01_Normalize` fails, but ONLY when the agent runs it — `EXEC core.usp_Normalize` works fine when you run it yourself**, and every collection job succeeds | the agent identity has `SELECT` on `SCHEMA::cfg` but not `EXECUTE`, so it cannot call the scalar settings readers `cfg.fn_Int` / `cfg.fn_Dec`. Ownership chaining normally masks this, but the normalizer builds its per-feed statements with `sp_executesql` and a chain does not carry into dynamic SQL — so the call is checked against the caller. It works for you because an admin already has `EXECUTE` | `GRANT EXECUTE ON SCHEMA::cfg TO [<your-umi>];` — read-only, these functions only parse `cfg.Setting` |
 | `Invalid object name 'stg.X'` | that step has never run | start the owning job manually |
 | **`EHD_Process_Daily` step `03_SyncTargetRegistry` fails daily with `The UPDATE permission was denied on the object 'Target' ... schema 'cfg'`** — and newly onboarded databases never appear on the scorecard | the agent identity was granted `SELECT` on `SCHEMA::cfg` only, but that step (and the target merge inside `core.usp_RecordArrival`) writes to `cfg.Target`. The merge in the normalizer fails too, silently | `GRANT INSERT, UPDATE ON OBJECT::cfg.Target TO [<your-umi>];` in the job database. Object-scoped on purpose — do **not** widen to `SCHEMA::cfg`, which would also expose `cfg.Setting` |
 | **`core.vw_FeedDiagnosis` reports `Data arrived earlier but no job has run in 24 h` while `core.vw_JobHealth` clearly shows successful runs**, and the `JOB_FAILING` alert never fires | job history records the **fully qualified** `target_server_name`, but `cfg.Target` and `core.FeedArrival` key on `@@SERVERNAME`, which is the **short** name. Every join between them matched nothing | redeploy `01-central\04-job-health.sql` — `core.vw_JobExecution` now normalizes `ServerName` to the short form and keeps the full name as `TargetServerFqdn` |

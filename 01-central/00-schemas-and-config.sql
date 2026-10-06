@@ -186,7 +186,7 @@ CREATE TABLE cfg.Target
     TargetId       int IDENTITY(1,1) NOT NULL CONSTRAINT PK_cfg_Target PRIMARY KEY CLUSTERED,
     ServerName     nvarchar(256) NOT NULL,
     DatabaseName   nvarchar(256) NOT NULL,
-    Environment    varchar(32)   NULL,      -- Prod | Stage | Dev | DR
+    Environment    varchar(32)   NOT NULL CONSTRAINT DF_cfg_Target_Env DEFAULT ('Default'),
     Owner          nvarchar(256) NULL,      -- team or DL responsible
     Criticality    varchar(16)   NULL,      -- Tier1 | Tier2 | Tier3
     IsVendorOwned  bit           NOT NULL CONSTRAINT DF_cfg_Target_Vendor  DEFAULT (0),
@@ -196,6 +196,33 @@ CREATE TABLE cfg.Target
     LastSeenUtc    datetime2(3)  NULL,
     CONSTRAINT UQ_cfg_Target UNIQUE (ServerName, DatabaseName)
 );
+GO
+
+/*------------------------------------------------------------------------------
+  Environment: default it, and make it stick.
+
+  The CREATE TABLE above only runs on a NEW database, so an estate that already
+  has cfg.Target would keep a nullable Environment with no default and never pick
+  this up. These three steps bring an existing table to the same shape and are
+  safe to re-run.
+
+  Why it matters beyond tidiness: the dashboard groups and filters by
+  Environment, and NULL is not a group - an unregistered or partially registered
+  target would silently drop out of the Environment filter rather than show up
+  as unclassified. 'Default' makes "nobody has classified this yet" a visible
+  state instead of an absent one.
+------------------------------------------------------------------------------*/
+IF NOT EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_cfg_Target_Env')
+    ALTER TABLE cfg.Target ADD CONSTRAINT DF_cfg_Target_Env DEFAULT ('Default') FOR Environment;
+GO
+
+UPDATE cfg.Target SET Environment = 'Default' WHERE Environment IS NULL;
+GO
+
+IF EXISTS (SELECT 1 FROM sys.columns
+           WHERE object_id = OBJECT_ID('cfg.Target')
+             AND name = 'Environment' AND is_nullable = 1)
+    ALTER TABLE cfg.Target ALTER COLUMN Environment varchar(32) NOT NULL;
 GO
 
 CREATE OR ALTER PROCEDURE cfg.usp_RegisterTarget
@@ -236,8 +263,12 @@ BEGIN
         Notes         = COALESCE(@Notes,         t.Notes)
     WHEN NOT MATCHED BY TARGET THEN
         INSERT (ServerName, DatabaseName, Environment, Owner, Criticality, IsVendorOwned, Notes)
-        VALUES (@ServerName, @DatabaseName, @Environment, @Owner, @Criticality,
-                ISNULL(@IsVendorOwned, 0), @Notes);
+        /* Environment is NOT NULL: an omitted @Environment must fall back to
+           'Default' explicitly. The column DEFAULT does not fire here, because
+           naming the column in the INSERT list and passing NULL is an explicit
+           NULL, not an omission. */
+        VALUES (@ServerName, @DatabaseName, ISNULL(@Environment, 'Default'),
+                @Owner, @Criticality, ISNULL(@IsVendorOwned, 0), @Notes);
 END;
 GO
 

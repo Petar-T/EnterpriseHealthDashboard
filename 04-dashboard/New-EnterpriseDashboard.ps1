@@ -122,8 +122,32 @@ if (-not (Test-Path $TemplatePath)) {
 # Read the template FIRST. OutputPath and TemplatePath are the same file by
 # default, so if generation failed halfway we would otherwise destroy the
 # template and have nothing to regenerate from.
+#
+# READ WITH AN EXPLICIT ENCODING. This is not pedantry - omitting it silently
+# corrupted every generated dashboard, and the damage COMPOUNDED on each run.
+#
+# Get-Content -Raw with no -Encoding uses the system ANSI code page on Windows
+# PowerShell 5.1 (Windows-1252 on a Western install), while line 952 writes the
+# result back as UTF-8. So a round trip mangles every non-ASCII character and
+# makes it longer:
+#
+#     --  U+2014 EM DASH, UTF-8 bytes E2 80 94
+#     read as CP1252 -> 'a-hat' + 'euro' + 'right-quote'  (3 chars)
+#     written as UTF-8 -> 6 bytes ... and the next run re-reads THOSE as CP1252
+#
+# Measured on a 14-byte sample: 16 -> 21 -> 31 -> 51 bytes over three cycles.
+# Because OutputPath defaults to this very file, the output becomes the next
+# run's template and the corruption snowballs. The visible symptom was garbage
+# either side of the database and server names in the two dropdowns - the only
+# non-ASCII in the template is the em dash used as their separator.
+#
+# PowerShell 7 defaults Get-Content to UTF-8, so this never reproduced there -
+# which is exactly why it survived testing. Reading through the .NET API with an
+# explicit encoding is version-proof and symmetric with the write at the end.
+# $TemplatePath is already absolute by this point, so the .NET path rule that
+# bit us elsewhere does not apply.
 #------------------------------------------------------------------------------
-$template = Get-Content -LiteralPath $TemplatePath -Raw
+$template = [System.IO.File]::ReadAllText($TemplatePath, [System.Text.Encoding]::UTF8)
 
 $startMark = '/*__DATA_START__*/'
 $endMark   = '/*__DATA_END__*/'
@@ -148,6 +172,26 @@ catch {
         $useFallback = $true
     }
     # any other error here just means the probe server was unreachable, which is fine
+}
+
+# The message-matching above decides WHY we failed. This decides WHETHER we can
+# proceed at all, and it is the check that actually matters.
+#
+# Pattern-matching the exception text only catches the architecture problem. Any
+# other reason the module is unusable - not installed, blocked by execution
+# policy, PSModulePath not covering the host, a half-finished install - produces
+# a message that matches none of those patterns, so $useFallback stayed $false
+# and the script sailed on to call a command that does not exist, dying later
+# with the thoroughly unhelpful
+#
+#     The term 'Invoke-Sqlcmd' is not recognized as a name of a cmdlet
+#
+# which reads like a broken script rather than a missing module. Testing for the
+# command itself is reason-agnostic: if we cannot call it, we use the fallback,
+# which needs no module and ships with .NET.
+if (-not $useFallback -and -not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
+    Write-Warning "The SqlServer module is not available here - falling back to System.Data.SqlClient. (Install-Module SqlServer -Scope CurrentUser to use it instead.)"
+    $useFallback = $true
 }
 
 #------------------------------------------------------------------------------
