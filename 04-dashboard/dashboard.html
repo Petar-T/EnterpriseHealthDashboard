@@ -363,6 +363,14 @@ svg text { font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
   </div>
   <div class="spacer"></div>
   <div class="fld">
+    <label for="selTz">Times</label>
+    <select id="selTz">
+      <option value="local">Local</option>
+      <option value="utc">UTC</option>
+    </select>
+    <span class="cnt" id="cntTz"></span>
+  </div>
+  <div class="fld">
     <label>&nbsp;</label>
     <button class="btn" id="btnReset">Reset filters</button>
     <span class="cnt">&nbsp;</span>
@@ -591,6 +599,56 @@ function ago(min) {
   if (min < 1440) return Math.round(min / 60) + "h ago";
   return Math.round(min / 1440) + "d ago";
 }
+
+/* ---------------------------------------------------------------------------
+   Timestamp rendering.
+
+   Every timestamp in this system is UTC - the column names say so, and the
+   generator now emits ISO-8601 with an explicit Z. This renders them in either
+   UTC or the viewer's local zone, which is a DISPLAY choice: nothing is ever
+   stored, compared or sorted in local time.
+
+   Three things this has to get right, each of which is a way to be silently
+   wrong rather than visibly broken:
+
+   1. A bare "2026-10-06T16:39:55" with no Z is parsed by JavaScript as LOCAL
+      time, not UTC. Dashboards generated before the serialization fix carry
+      exactly that, so the Z is added back before parsing. Without this, an old
+      file renders every timestamp shifted by the viewer's offset and looks
+      entirely plausible.
+
+   2. DATE-ONLY values are day buckets, not instants. "2026-10-06" converted to
+      local time can land on the 5th or the 7th and misattribute a deadlock or
+      a security change to the wrong day. They are passed through untouched.
+
+   3. An unparseable value is returned as-is rather than rendered "Invalid
+      Date", so bad input is visible instead of disguised.
+--------------------------------------------------------------------------- */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const BARE_ISO  = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/;
+
+function localZoneLabel() {
+  const off = -new Date().getTimezoneOffset();      // minutes east of UTC
+  const sign = off >= 0 ? "+" : "-";
+  const a = Math.abs(off);
+  const hh = String(Math.floor(a / 60)).padStart(2, "0");
+  const mm = String(a % 60).padStart(2, "0");
+  let name = "";
+  try { name = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+  return (name ? name + " " : "") + "UTC" + sign + hh + ":" + mm;
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  if (DATE_ONLY.test(iso)) return iso;                  // day bucket - never shift
+  const norm = BARE_ISO.test(iso) ? iso + "Z" : iso;    // assume UTC when unmarked
+  if (state.tz === "utc") return norm.replace("T", " ").replace("Z", " UTC");
+  const d = new Date(norm);
+  if (isNaN(d.getTime())) return iso;                   // show the raw value
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+         `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 /* same scale, but phrased as a duration rather than a point in the past.
    Rounding matters here: this renders the staleness LIMIT, and Math.round
    turned the 90-minute Standard limit into "2h", which does not match any
@@ -804,6 +862,7 @@ T.forEach(t => {
 });
 
 const state = { tab: "fleet", srv: "*", db: "*", env: "*", health: "*", find: "",
+                tz: "local",
                 sortKey: "healthScore", sortDir: 1, autoPicked: false };
 
 /* cfg.Target.Environment defaults to 'Default', but a dashboard generated from
@@ -820,6 +879,7 @@ function readHash() {
   if (h.get("db"))     state.db  = decodeURIComponent(h.get("db"));
   if (h.get("env"))    state.env = decodeURIComponent(h.get("env"));
   if (h.get("health")) state.health = h.get("health");
+  if (h.get("tz") === "utc" || h.get("tz") === "local") state.tz = h.get("tz");
   if (h.get("find"))   state.find = decodeURIComponent(h.get("find"));
 }
 function writeHash() {
@@ -829,6 +889,7 @@ function writeHash() {
   if (state.db     !== "*") h.set("db", state.db);
   if (state.env    !== "*") h.set("env", state.env);
   if (state.health !== "*") h.set("health", state.health);
+  if (state.tz !== "local") h.set("tz", state.tz);
   if (state.find)           h.set("find", state.find);
   const s = "#" + h.toString();
   if (location.hash !== s) history.replaceState(null, "", s);
@@ -898,6 +959,8 @@ function buildFilters() {
   if (state.db !== "*" && !opts.some(t => t.id === state.db)) state.db = "*";
   $("selDb").value = state.db;
   $("selHealth").value = state.health;
+  $("selTz").value = state.tz;
+  $("cntTz").textContent = state.tz === "utc" ? "UTC+00:00" : localZoneLabel();
   $("txtFind").value = state.find;
 
   const totalCrit = pool.reduce((a, t) => a + t.critCount, 0);
@@ -1132,7 +1195,7 @@ function renderFleet() {
       <td><b>${esc(c.t.database)}</b>
           <div style="font-size:11px;color:var(--cp-text-soft)">${esc(shortServer(c.t.server))}</div></td>
       <td>${esc(c.tier)}</td>
-      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(c.lastSuccess.replace("T", " ")) : '<span class="bad">never</span>'}</td>
+      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(fmtTime(c.lastSuccess)) : '<span class="bad">never</span>'}</td>
       <td class="num ${c.status === "CRITICAL" || c.status === "NEVER" ? "bad" : ""}">${collAge(c)}</td>
       <td class="num" style="color:var(--cp-text-soft)">${dur(c.limitMin)}</td>
       <td class="num ${c.failures24h ? "bad" : ""}" title="${c.attempts24h ? esc(c.failures24h + " of " + c.attempts24h + " attempts failed") : ""}">${
@@ -1226,7 +1289,7 @@ function renderDetail(t) {
     [{t:"Tier",k:"tier"},{t:"Last success",k:"lastSuccess"},{t:"Age",num:true,k:"ageMin"},{t:"Limit",num:true,k:"limitMin"},{t:"Fails 24h",num:true,k:"failures24h"},{t:"Status",k:"status"},{t:"Last error"}],
     t.collectors || [],
     c => `<tr><td><b>${esc(c.tier)}</b></td>
-      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(c.lastSuccess.replace("T", " ")) : '<span class="bad">never</span>'}</td>
+      <td class="mono" style="font-size:11.5px">${c.lastSuccess ? esc(fmtTime(c.lastSuccess)) : '<span class="bad">never</span>'}</td>
       <td class="num ${c.status === "CRITICAL" || c.status === "NEVER" ? "bad" : ""}">${collAge(c)}</td>
       <td class="num" style="color:var(--cp-text-soft)">${dur(c.limitMin)}</td>
       <td class="num ${c.failures24h ? "bad" : ""}" title="${c.attempts24h ? esc(c.failures24h + " of " + c.attempts24h + " attempts failed") : ""}">${
@@ -1274,7 +1337,7 @@ function renderDetail(t) {
       <td class="num"><b>${num(e.count)}</b></td>
       <td style="max-width:520px">${esc(e.msg)}</td>
       <td style="color:var(--cp-text-muted)">${esc(e.app)}</td>
-      <td class="mono" style="font-size:11px;color:var(--cp-text-soft)">${esc((e.last||"").replace("T"," "))}</td></tr>`);
+      <td class="mono" style="font-size:11px;color:var(--cp-text-soft)">${esc(fmtTime(e.last))}</td></tr>`);
 
   /* ---- queries ---- */
   $("regCount").textContent = (t.regressions || []).length + " detected";
@@ -1331,7 +1394,7 @@ function renderDetail(t) {
       ${[["Used", num(C.usedMB/1024,1)+" GB", "of " + num(C.maxMB/1024,0)+" GB"],
          ["Growth", num(C.growthPerDay,0)+" MB", "per day"],
          ["Runs out of space", wallSoon ? C.daysUntilFull + " d" : "\u2014",
-            wallSoon ? "on " + esc(C.projectedFull) : "no wall within 10 years"],
+            wallSoon ? "on " + esc(fmtTime(C.projectedFull)) : "no wall within 10 years"],
          ["Log space", num(C.logPct,1)+"%", "used"],
          ["tempdb", num(C.tempdbPct,1)+"%", "used"],
          ["Index overhead", num(100*C.indexMB/Math.max(1,(C.dataMB+C.indexMB)),1)+"%", "of total"]
@@ -1344,7 +1407,7 @@ function renderDetail(t) {
     <div style="margin-top:14px;padding:11px 13px;border-radius:12px;background:var(--cp-accent-soft);
                 border:1px solid var(--cp-border);font-size:12.5px;color:var(--cp-text-muted)">
       ${wallSoon
-        ? `At the current rate this database reaches <b style="color:var(--cp-text)">MAXSIZE on ${esc(C.projectedFull)}</b>
+        ? `At the current rate this database reaches <b style="color:var(--cp-text)">MAXSIZE on ${esc(fmtTime(C.projectedFull))}</b>
            (${C.daysUntilFull} days).`
         : `Growth is flat or too slow to project &mdash; no capacity wall within 10 years.`}
       ${recoverGB > 0.1 ? ` Dropping the unused indexes on the Indexes tab would recover
@@ -1400,7 +1463,7 @@ function renderDetail(t) {
   table($("tblAudit"),
     [{t:"Time (UTC)"},{t:"Action"},{t:"Result"},{t:"Principal"},{t:"Target"},{t:"Client IP"},{t:"App"},{t:"Statement"}],
     t.auditEvents || [],
-    a => `<tr><td class="mono" style="font-size:11px">${esc((a.utc||"").replace("T"," "))}</td>
+    a => `<tr><td class="mono" style="font-size:11px">${esc(fmtTime(a.utc))}</td>
       <td class="mono"><b>${esc(a.action)}</b></td>
       <td><span class="tag ${a.ok ? "t-ok" : "t-crit"}">${a.ok ? "OK" : "FAILED"}</span></td>
       <td>${esc(a.login)}</td><td>${esc(a.target || "\u2014")}</td>
@@ -1484,9 +1547,9 @@ function render() {
     `<span class="chip">Showing <b>${pool2.length}</b> of ${T.length}</span>`,
     `<span class="chip">Window <b>${M.windowHours || 24}h</b></span>`,
     M.repositoryMB ? `<span class="chip">Repository <b>${num(Math.round(M.repositoryMB))} MB</b></span>` : "",
-    `<span class="chip">Generated <b>${esc((M.generatedUtc || "").replace("T", " ").replace("Z", " UTC"))}</b></span>`
+    `<span class="chip">Generated <b>${esc(fmtTime(M.generatedUtc))}</b></span>`
   ].filter(Boolean).join("");
-  $("fGen").textContent = (M.generatedUtc || "").replace("T", " ").replace("Z", " UTC");
+  $("fGen").textContent = fmtTime(M.generatedUtc);
   $("fRows").textContent = M.collectionRows
     ? num(M.collectionRows) + " rows in the central repository"
     : "";
@@ -1543,6 +1606,9 @@ $("selEnv").addEventListener("change", (e) => {
 });
 $("selHealth").addEventListener("change", (e) => {
   state.health = e.target.value; state.db = "*"; state.tab = "fleet"; render();
+});
+$("selTz").addEventListener("change", (e) => {
+  state.tz = e.target.value; render();
 });
 let findTimer;
 $("txtFind").addEventListener("input", (e) => {

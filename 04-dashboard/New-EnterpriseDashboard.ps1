@@ -328,6 +328,51 @@ function Get-Val {
 
 function N2 { param($v) if ($null -eq $v) { return 0 } return [math]::Round([double]$v, 2) }
 
+<#
+------------------------------------------------------------------------------
+  TIMESTAMPS GO OUT AS ISO-8601 UTC, ALWAYS, WITH THE Z.
+
+  Two separate bugs lived here, and the second one was the dangerous kind.
+
+  1. `[string]$someDateTime` formats using the CURRENT CULTURE. On an en-US
+     host that produced "10/06/2026 16:39:55"; on en-GB the same instant became
+     "06/10/2026 16:39:55". Not ISO, ambiguous between readers, and different
+     depending on which machine happened to generate the dashboard.
+
+  2. The one site that did format explicitly emitted "2026-10-06T16:39:55" with
+     NO timezone designator. JavaScript parses a bare date-time string as LOCAL
+     time, so the moment anything called new Date() on it the value silently
+     shifted by the viewer's UTC offset - a plausible-looking "last success"
+     that is two hours wrong is worse than no timestamp at all.
+
+  ConvertTo-IsoUtc fixes both: invariant culture, explicit Z.
+
+  ConvertTo-IsoDate exists because DATE-ONLY values must NOT be treated as
+  instants. DayUtc and DetectedDate are day buckets (CAST(... AS date)).
+  Rendering "2026-10-06" as midnight UTC and then converting to local time can
+  move it to the 5th or the 7th, which would silently misattribute a deadlock
+  or a security change to the wrong day. A day is a day; it stays a plain date
+  and the dashboard never timezone-shifts it.
+------------------------------------------------------------------------------
+#>
+function ConvertTo-IsoUtc {
+    param($Value)
+    if ($null -eq $Value -or $Value -is [System.DBNull]) { return $null }
+    if ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value)) { return $null }
+    try   { $dt = [datetime]::Parse($Value, [cultureinfo]::InvariantCulture) }
+    catch { try { $dt = [datetime]$Value } catch { return [string]$Value } }
+    return $dt.ToString("yyyy-MM-ddTHH:mm:ss'Z'", [cultureinfo]::InvariantCulture)
+}
+
+function ConvertTo-IsoDate {
+    param($Value)
+    if ($null -eq $Value -or $Value -is [System.DBNull]) { return $null }
+    if ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value)) { return $null }
+    try   { $dt = [datetime]::Parse($Value, [cultureinfo]::InvariantCulture) }
+    catch { try { $dt = [datetime]$Value } catch { return [string]$Value } }
+    return $dt.ToString('yyyy-MM-dd', [cultureinfo]::InvariantCulture)
+}
+
 Write-Host "Connecting to $CentralDatabase on $CentralServer ..." -ForegroundColor Cyan
 
 #------------------------------------------------------------------------------
@@ -684,7 +729,7 @@ foreach ($f in $fleet) {
         $last = Get-Val $worst 'LastArrivalUtc' $null
         [void]$collectors.Add([ordered]@{
             tier        = $tier
-            lastSuccess = if ($last) { ([datetime]$last).ToString('yyyy-MM-ddTHH:mm:ss') } else { $null }
+            lastSuccess = ConvertTo-IsoUtc $last
             ageMin      = $age
             failures24h = $fails
             attempts24h = $attempts
@@ -800,14 +845,14 @@ foreach ($f in $fleet) {
                 num   = [int](Get-Val $_ 'ErrorNumber' 0)
                 sev   = [int](Get-Val $_ 'Severity' 0)
                 count = [int](Get-Val $_ 'Occurrences' 0)
-                last  = [string](Get-Val $_ 'LastSeenUtc' '')
+                last  = ConvertTo-IsoUtc (Get-Val $_ 'LastSeenUtc' $null)
                 app   = [string](Get-Val $_ 'TopApp' '')
                 msg   = [string](Get-Val $_ 'Message' '')
             }})
 
         deadlocks = @(Rows-For $gDl $key | ForEach-Object {
             [ordered]@{
-                d = [string](Get-Val $_ 'DayUtc' '')
+                d = ConvertTo-IsoDate (Get-Val $_ 'DayUtc' $null)
                 n = [int](Get-Val $_ 'Deadlocks' 0)
             }})
 
@@ -817,7 +862,7 @@ foreach ($f in $fleet) {
             pctUsed  = N2 (Get-Val $cap 'PctUsed'       (Get-Val $f 'StoragePct' 0))
             growthPerDay  = N2 (Get-Val $cap 'GrowthMBPerDay' 0)
             daysUntilFull = if ($null -ne (Get-Val $cap 'DaysUntilFull' $null)) { [int](Get-Val $cap 'DaysUntilFull' 0) } else { $null }
-            projectedFull = [string](Get-Val $cap 'ProjectedFullUtc' 'n/a')
+            projectedFull = (ConvertTo-IsoUtc (Get-Val $cap 'ProjectedFullUtc' $null))
             verdict       = [string](Get-Val $cap 'Verdict' 'Insufficient history')
             confidence    = [string](Get-Val $cap 'Confidence' 'Low')
             # consumed by the Log space / tempdb / Index overhead tiles
@@ -894,12 +939,12 @@ foreach ($f in $fleet) {
                 severity = [string](Get-Val $_ 'Severity' '')
                 subject  = [string](Get-Val $_ 'Subject' '')
                 detail   = [string](Get-Val $_ 'Detail' '')
-                date     = [string](Get-Val $_ 'DetectedDate' '')
+                date     = ConvertTo-IsoDate (Get-Val $_ 'DetectedDate' $null)
             }})
 
         auditEvents = @(Rows-For $gSe $key | ForEach-Object {
             [ordered]@{
-                utc    = [string](Get-Val $_ 'EventTimeUtc' '')
+                utc    = ConvertTo-IsoUtc (Get-Val $_ 'EventTimeUtc' $null)
                 action = "ERR " + [string](Get-Val $_ 'ErrorNumber' '')
                 ok     = $false
                 login  = [string](Get-Val $_ 'LoginName' '')
