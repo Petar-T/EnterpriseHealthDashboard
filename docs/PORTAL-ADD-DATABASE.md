@@ -158,6 +158,13 @@ Required: `1`, `0`, `0`, **`0`**.
 A non-zero `BusinessTablesReadable` means someone granted `db_datareader` or an
 over-broad role, and the read-only story no longer holds.
 
+> **Do not run this against the repository database.** The repository is also
+> the first monitored target, but the identity deliberately holds `CREATE TABLE`
+> and `SELECT` there — it has to create and fill `stg.*`. Running the proof
+> there returns something like `1, 1, 0, 46`, which is correct for that database
+> and meaningless as a read-only claim. The proof applies to **monitored
+> targets**, which is where the guarantee matters.
+
 ---
 
 ## 4. Register it

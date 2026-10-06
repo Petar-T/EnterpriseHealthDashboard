@@ -320,13 +320,17 @@ wait, then re-run that one file.
 
 ```sql
 SELECT Tables_ = COUNT(*) FROM sys.tables t
-JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name IN ('cfg','core','stg');
+JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name IN ('cfg','core');
 SELECT Procs_ = COUNT(*) FROM sys.procedures p
 JOIN sys.schemas s ON s.schema_id = p.schema_id WHERE s.name IN ('cfg','core');
 SELECT Scripts = COUNT(*) FROM cfg.DeployLog;
 ```
 
 Expect **28 tables**, **10 procedures**, **7 scripts**.
+
+> The table count deliberately excludes `stg`. Those tables do not exist yet —
+> the job agent creates them on first collection (step 14) — and once they do,
+> including them would turn this check into a moving number.
 
 ---
 
@@ -634,6 +638,20 @@ $t = az account get-access-token --resource https://database.windows.net/ --quer
 
 Open `estate.html`. One database, mostly green. The capacity forecast needs a
 few days of history before it says anything useful.
+
+### What the page gives you
+
+| Control | Does |
+|---|---|
+| **Server / Database / Environment / Health** | Filter the fleet. `Environment` comes from `cfg.Target`, defaulting to `Default` when you do not set one |
+| **Times** | **Local** (default) or **UTC**. Everything is stored and collected in UTC; this only changes the display. Switch to UTC when correlating against the Azure portal or `jobs.job_executions` |
+| **Column headers** | Click to sort any table — top queries by execs, total CPU, average duration, reads or plan count |
+| **Reset filters** | Back to the full fleet |
+
+The filter and timezone selections persist in the URL, so a link you paste to a
+colleague opens on the same view. The active zone is shown under the Times
+control (for example `Europe/Oslo UTC+02:00`) so a shared link is never
+ambiguous about which clock it is using.
 
 ---
 
