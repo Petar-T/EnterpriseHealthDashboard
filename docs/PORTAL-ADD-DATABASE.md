@@ -185,7 +185,7 @@ EXEC cfg.usp_RegisterTarget
      @IsVendorOwned = 1;
 ```
 
-> ⚠️ **The two forms are not a typo.** The target group needs the **FQDN**
+> **The two forms are not a typo.** The target group needs the **FQDN**
 > because the agent dials it. `cfg.Target` needs the **short name**, because
 > every collection query stamps its rows with `@@SERVERNAME`, which on Azure SQL
 > returns the short form.

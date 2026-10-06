@@ -18,9 +18,9 @@ A step-by-step build using the Azure Portal, verified end to end on
 Write your values in the right-hand column and use them consistently. Every
 later step refers to these names.
 
-| Placeholder | What it is | Example | Constraints |
+| Placeholder | What it is | Default used here | Constraints |
 |---|---|---|---|
-| `<SUBSCRIPTION>` | Azure subscription | *MCAPS-Hybrid-…* | You need **Owner** or **Contributor** |
+| `<SUBSCRIPTION>` | Azure subscription | *your own* | You need **Owner** or **Contributor** |
 | `<RESOURCE-GROUP>` | New resource group | `EnterpriseHealthDashboard` | Any valid name |
 | `<REGION>` | Azure region | `Central US` | Use one region for every resource below |
 | `<SERVER>` | Logical SQL server | `ehd-server-01` | **Globally unique across all of Azure.** Lowercase, digits, hyphens |
@@ -29,7 +29,11 @@ later step refers to these names.
 | `<UMI>` | Managed identity | `ehd-agent-umi` | Unique within the resource group |
 | `<YOUR-IP>` | Your workstation's public IP | *filled in by the Portal* | Changes if you move networks or VPN |
 
-> **`<SERVER>` is the one that bites.** Logical server names share a single
+The defaults are the values used throughout this document, so following it
+unchanged — apart from `<SERVER>` — works. Every code block below uses them
+literally, which means the only mandatory edit is the server name.
+
+> **`<SERVER>` must be globally unique.** Logical server names share a single
 > global DNS namespace, so a plain name like `ehd-server` is very likely already
 > taken by someone else's subscription. The Portal only tells you at validation
 > time. Pick something distinctive; if creation fails with *"name already
@@ -88,13 +92,13 @@ gives the agent a much narrower route.
 
 ---
 
-## 3. ⚠️ Gate — check public network access
+## 3. Check public network access
 
 **Portal → `<SERVER>` → Security → Networking → Public network access**
 
 | What you see | What to do |
 |---|---|
-| **Selected networks**, with your IP listed | ✅ Continue to step 4 |
+| **Selected networks**, with your IP listed | Continue to step 4 |
 | **Disabled** | Read the box below before continuing |
 
 ### If it says Disabled
@@ -111,9 +115,9 @@ will keep winning.** What that means in practice:
 
 | Path | Affected? |
 |---|---|
-| Job agent → monitored databases | ❌ No — uses the private endpoint from step 8 |
-| **You → the repository** (SSMS, steps 9–13) | ✅ **Yes — blocked** |
-| **Dashboard generator → the repository** (step 14) | ✅ **Yes — blocked** |
+| Job agent → monitored databases | No — uses the private endpoint from step 8 |
+| **You → the repository** (SSMS, steps 9–13) | **Yes — blocked** |
+| **Dashboard generator → the repository** (step 14) | **Yes — blocked** |
 
 So **collection keeps running and the dashboard stops refreshing** — a failure
 mode that looks like a broken dashboard rather than a network policy.
@@ -227,14 +231,13 @@ monitoring repository, not business data.
 
 ---
 
-## 8. ⚠️ Private endpoint — the step everyone skips
+## 8. Create the private endpoint
 
-**Even though the agent, the job database and the repository are all on
-`<SERVER>`, the agent's connection to that server *as a target* still goes
-through the firewall/private-endpoint path.** Sharing a server buys you nothing
-here.
+The agent's connection to a server **as a target** goes through the
+firewall/private-endpoint path — including when the agent, the job database and
+the repository are all on `<SERVER>`. Sharing a server does not exempt it.
 
-Skip this and every collection step fails with:
+Without this, every collection step fails with:
 
 ```
 Failed to connect to the target database: Cannot open server '<SERVER>'
@@ -270,9 +273,9 @@ Status must read **Approved**. Allow up to 5 minutes to take effect.
 |---|---|
 | Server name | `<SERVER>.database.windows.net` |
 | Authentication | **Microsoft Entra MFA** |
-| **Options → Connect to database** | `<DATABASE>` ← **set this explicitly** |
+| **Options → Connect to database** | `<DATABASE>` **set this explicitly** |
 
-> Leaving the default database blank is a classic time-waster: Azure SQL reports
+> Set the default database explicitly. Azure SQL reports
 > a missing or unreachable database as a **login failure**, which sends you
 > hunting an auth problem that isn't there.
 
@@ -331,6 +334,26 @@ Expect **28 tables**, **10 procedures**, **7 scripts**.
 
 The managed identity exists in Azure but has **no database user** yet. Nothing
 will collect until it does.
+
+### No `CREATE LOGIN` is needed here
+
+`CREATE USER ... FROM EXTERNAL PROVIDER` creates a **contained** database user
+mapped straight to the Entra principal. For this topology — the agent writing
+results to `<DATABASE>` and collecting from databases registered individually as
+`SqlDatabase` targets — that is sufficient, and **no login in `master` is
+required**. This deployment was built and verified that way.
+
+A login in `master` becomes necessary in exactly two cases, both covered in
+[PORTAL-ADD-DATABASE.md](PORTAL-ADD-DATABASE.md):
+
+| Case | Why |
+|---|---|
+| A target group member of type **`SqlServer`** (whole server) | The agent connects to that server's `master` to enumerate databases, so the identity must exist there |
+| The **zero-footprint** permission model on a target | `##MS_ServerStateReader##` and friends are *server* roles, so they need a server principal |
+
+Neither applies to step 13 below, which registers a single database.
+
+### The grants
 
 > **Change `ehd-agent-umi` to your `<UMI>` name in every line below.** The name
 > must match the managed identity resource exactly — Entra resolves it by
@@ -391,8 +414,15 @@ GROUP BY s.name;
 
 | SchemaName | WritesDenied | ReadBlocked |
 |---|---|---|
-| `jobs` | 1 | **0** ← must be 0 |
+| `jobs` | 1 | **0** |
 | `jobs_internal` | 1 | 1 |
+
+`ReadBlocked` **must be 0 on `jobs`**. If it comes back 1, a `CONTROL` denial
+has crept in and every job-health view is broken. Fix with:
+
+```sql
+REVOKE CONTROL ON SCHEMA::jobs FROM [ehd-agent-umi];
+```
 
 ---
 
@@ -401,7 +431,7 @@ GROUP BY s.name;
 Run these **in order** from `03-elasticjobs\`:
 
 ```
-20-agent-setup.sql      ← creates the target groups the others attach to
+20-agent-setup.sql      creates the target groups the others attach to
 21-jobs-frequent.sql
 22-jobs-standard.sql
 23-jobs-daily.sql
@@ -460,7 +490,7 @@ EXEC cfg.usp_RegisterTarget
      @Criticality  = N'High';
 ```
 
-> ⚠️ **The two use different name forms and that is not a typo.** The target
+> **The two use different name forms and that is not a typo.** The target
 > group needs the **FQDN** because the agent dials it. `cfg.Target` needs the
 > **short name**, because every collection query stamps its rows with
 > `@@SERVERNAME`, which on Azure SQL returns the short form. Mismatch them and
