@@ -115,7 +115,7 @@ python deploy/Invoke-EhdSql.py ... -i tests/verify-staging-schema.sql
     -OutputPath ./estate.html
 ```
 
-Full procedure with a verification gate at every step: **[DEPLOY-AND-OPERATE.md](DEPLOY-AND-OPERATE.md)**.
+Current Portal-first deployment procedure with a verification gate at every step: **[docs/PORTAL-DEPLOY.md](docs/PORTAL-DEPLOY.md)**. Add databases with **[docs/PORTAL-ADD-DATABASE.md](docs/PORTAL-ADD-DATABASE.md)**.
 
 ### Try it without an estate
 
@@ -142,7 +142,7 @@ tests/             contract tests, staging verification, demo seed + cleanup
 docs/              generated object reference, screenshots
 ```
 
-`DEPLOY-AND-OPERATE.md` is the operational manual — 15 sections covering provisioning, gates, day-2 operations, incident runbooks, and a troubleshooting table of every failure mode hit in a real deployment.
+`docs/PORTAL-DEPLOY.md` and `docs/PORTAL-ADD-DATABASE.md` are the followable guides. `docs/legacy/DEPLOY-AND-OPERATE.md` is the extended operator reference — background, day-2 operations, incident runbooks, and a troubleshooting table of every failure mode hit in real deployments.
 
 ---
 
@@ -167,7 +167,7 @@ The one exception is **reported, never silent** — an invisible exemption would
 
 ## Things that cost real time
 
-Hard-won. All covered in full in `DEPLOY-AND-OPERATE.md` §12.
+Hard-won. Covered in full in `docs/legacy/DEPLOY-AND-OPERATE.md` §12, with the current deployment path in `docs/PORTAL-DEPLOY.md`.
 
 **Elastic Jobs adds exactly ONE column to an output table** — `internal_execution_id uniqueidentifier`. It does *not* add `target_server_name` or `target_database_name`; those belong to the `jobs.job_executions` **catalog view**, which is a different object entirely. Conflating the two is easy and expensive. Every collection query here therefore emits its own identity:
 

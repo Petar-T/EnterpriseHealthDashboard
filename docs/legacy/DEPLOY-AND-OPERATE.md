@@ -1,7 +1,15 @@
 # Deploy and Operate — Enterprise Health Dashboard
 
+> **Legacy extended operator reference.** The current, followable deployment path
+> is **[../PORTAL-DEPLOY.md](../PORTAL-DEPLOY.md)**, and database onboarding is
+> **[../PORTAL-ADD-DATABASE.md](../PORTAL-ADD-DATABASE.md)**. This file is kept
+> for background, design rationale, incident runbooks and troubleshooting history.
+> If a procedural step here disagrees with either Portal guide, the Portal guide
+> wins.
+
 Operational runbook. `README.md` explains *what* the system is and *why* it is
-built this way; this document is the one you follow with a terminal open.
+built this way; this document is the extended reference you keep open when you
+need detail beyond the Portal walkthroughs.
 
 **Contents**
 
@@ -196,13 +204,13 @@ deploying somewhere else.
 | Logical server | `ehd-server` → `ehd-server.database.windows.net` |
 | Database | `EnterpriseHealth` |
 | Job agent | `ehd-agent` |
-| Connectivity | **public endpoint + client IP firewall rule** — confirmed working |
+| Connectivity | **Elastic Jobs private endpoint** for collection; human/dashboard access depends on your tenant network policy |
 
-> **Region matters for the public-access policy.** `AzureSQL_PublicNetwork_Modify`
-> forced `publicNetworkAccess = Disabled` on a server created in `northeurope`,
-> but a server created in `centralus` came out **Enabled**. Do not assume either
-> outcome — create the server, then check (Gate 1 below). If it comes out
-> `Disabled`, follow Model A instead.
+> **Do not rely on region for public access.** A tenant policy can force
+> `publicNetworkAccess = Disabled` and may revert a manual change later. Check
+> the server after creation. Collection can run through the Elastic Jobs private
+> endpoint; SSMS and dashboard generation need either temporary public access or
+> your own private access path.
 
 ### Portal
 
@@ -215,11 +223,10 @@ the region, create.
 | Tab | Setting |
 |---|---|
 | Basics | Resource group, **Server name** (globally unique), Location |
-| Basics → Authentication | **Use both SQL and Microsoft Entra authentication** |
-| | **Set admin** → yourself. Saves a separate step |
-| | Server admin login + password — you need these for the job credential later |
-| Networking | ❌ **Allow Azure services and resources to access this server = No** |
-| | ✅ **Add current client IP address = Yes** |
+| Basics → Authentication | **Use Microsoft Entra-only authentication** |
+| | **Set admin** → yourself. No SQL admin password is required |
+| Networking | **Allow Azure services and resources to access this server = No** |
+| | **Add current client IP address = Yes** if public access is enabled |
 | Review + create | |
 
 > There is **no "Connectivity method" radio** when creating a *logical server* —
@@ -886,12 +893,17 @@ the Standard job harvesting the buffer every 30 minutes.
 
 Two steps, in this order.
 
-**a) Register it** (the database) — drives the fleet scorecard:
+**a) Register it** (the database) — drives the fleet scorecard. Use the stored
+procedure and the **short** server name:
 
 ```sql
-INSERT cfg.Target (ServerName, DatabaseName, Environment, Owner, Criticality, IsVendorOwned)
-VALUES (N'sql-prod.database.windows.net', N'AppDb', N'Production',
-        N'payments-team@contoso.com', N'High', 1);
+EXEC cfg.usp_RegisterTarget
+     @ServerName    = N'sql-prod',      -- no .database.windows.net
+     @DatabaseName  = N'AppDb',
+     @Environment   = N'Production',
+     @Owner         = N'payments-team@contoso.com',
+     @Criticality   = N'High',
+     @IsVendorOwned = 1;
 ```
 
 **b) Add it to the collection group** (same database) — drives collection:
@@ -909,8 +921,8 @@ EXEC jobs.sp_add_target_group_member
 
 ```sql
 -- No credential argument: the agent uses its managed identity. For a whole-server
--- member the identity must also exist as a LOGIN in that server's master, because
--- the agent connects there to enumerate the databases.
+-- member the identity must also exist as a LOGIN in that server's master, with
+-- ##MS_DatabaseConnector##, ##MS_ServerStateReader## and ##MS_DefinitionReader##.
 EXEC jobs.sp_add_target_group_member
      @target_group_name = N'EHD_AllTargets', @membership_type = N'Include',
      @target_type = N'SqlServer', @server_name = N'sql-prod.database.windows.net';
@@ -919,12 +931,10 @@ EXEC jobs.sp_add_target_group_member 'EHD_AllTargets', 'Exclude',
      'SqlDatabase', 'sql-prod.database.windows.net', 'ReportingCopy';
 ```
 
-Server membership needs a **refresh credential** so the agent can enumerate
-databases from `master`. New databases on that server are picked up
-automatically.
+Server membership with managed identity needs the UMI to exist as a login in that server's `master`, plus `##MS_DatabaseConnector##`, `##MS_ServerStateReader##` and `##MS_DefinitionReader##`. Do not pass a refresh credential. New databases on that server are picked up automatically.
 
 > Step (b) without (a) still works — `EHD_Process_Daily` auto-registers anything
-> that reports but is missing from `cfg.Target`, marked `Unclassified`. Step (a)
+> that reports but is missing from `cfg.Target`, with `Environment = Default`. Step (a)
 > without (b) gives you a permanent `NO DATA` row, which is the correct and
 > visible outcome.
 
@@ -1031,12 +1041,11 @@ redeploy `01-central\04-job-health.sql`.
 ```powershell
 .\04-dashboard\New-EnterpriseDashboard.ps1 `
     -CentralServer   ehd-server.database.windows.net `
-    -CentralDatabase EnterpriseHealth
+    -CentralDatabase EnterpriseHealth `
+    -OutputPath      .\04-dashboard\estate.html
 ```
 
-One connection, no target is contacted. Output overwrites
-`04-dashboard\dashboard.html` — a single self-contained file with no CDN
-dependency, safe to email or drop on a file share.
+One connection, no target is contacted. Use `-OutputPath` so the generated file does not overwrite the shipped `04-dashboard\dashboard.html` template. The output is a single self-contained file with no CDN dependency, safe to email or drop on a file share. The dashboard includes Environment and Health filters, a Local/UTC time toggle, and sortable detail tables.
 
 > Run this from wherever the repository is reachable — the same place you ran
 > section 3 from. The generator is the only part of the system that needs
